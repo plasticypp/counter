@@ -201,7 +201,17 @@ body{margin:0;background:#e9ebf0;color:var(--ink);padding:22px 14px 60px;
 var BASE = '<?!= baseUrl ?>';
 var MACHINES = <?!= machinesJson ?>;
 
-document.getElementById('urlText').textContent = BASE + '?action=counter';
+// The Pages wrapper defaults to the counter page and forwards its own query string, so
+// it needs no ?action=. The raw /exec URL does. Build links to suit whichever is in use.
+var IS_GAS = BASE.indexOf('script.google.com') !== -1;
+function link(machine){
+  if (IS_GAS){
+    return BASE + '?action=counter' + (machine ? '&machine=' + machine : '');
+  }
+  return BASE + (machine ? '?machine=' + machine : '');
+}
+
+document.getElementById('urlText').textContent = link(0);
 document.getElementById('stamp').textContent = new Date().toLocaleDateString('en-IN',
   { day:'numeric', month:'short', year:'numeric' });
 
@@ -212,7 +222,7 @@ function qr(el, text, size){
   });
 }
 
-qr(document.getElementById('qrMain'), BASE + '?action=counter', 208);
+qr(document.getElementById('qrMain'), link(0), 208);
 
 // Per-machine tags deep-link straight to that machine's form, skipping the list.
 var tags = document.getElementById('tags');
@@ -222,7 +232,7 @@ MACHINES.forEach(function(m){
   d.innerHTML = '<div class="m">' + m + '</div><div class="qs"></div>'
     + '<div class="lbl">Machine ' + m + '<span class="hi">काउंटर एंट्री</span></div>';
   tags.appendChild(d);
-  qr(d.querySelector('.qs'), BASE + '?action=counter&machine=' + m, 136);
+  qr(d.querySelector('.qs'), link(m), 136);
 });
 </script>
 </body>

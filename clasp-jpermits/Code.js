@@ -206,6 +206,11 @@ function importPendingPurchaseOrder() {
 // ─────────────────────────────────────────────────────────────────────────────
 var COUNTER_SHEET_ = 'Production Log';
 var COUNTER_HEADERS_ = ['Timestamp', 'Machine', 'Code', 'Counter', 'Rejection', 'Runner Kg', 'Operator'];
+// Public address operators actually use — a GitHub Pages wrapper that frames the counter
+// page (same pattern as Pack Masters DWM/QMS). Printed on the QR sheet so the stickers
+// stay valid across Apps Script redeployments.
+var COUNTER_PUBLIC_URL_ = 'https://plasticypp.github.io/counter/';
+
 var OPERATORS_SHEET_ = 'Operators';
 var OPERATORS_SEED_ = ['Rambihari', 'Ganesh', 'Vinod', 'Niraj', 'Mohan', 'TBM', 'Pradhan'];
 
@@ -1141,7 +1146,13 @@ function doGet(e) {
     // this deployment's own /exec URL, so the printed codes can never drift from the
     // live deployment the way a hardcoded string would.
     var tplQ = HtmlService.createTemplateFromFile('CounterQR');
-    tplQ.baseUrl = ScriptApp.getService().getUrl();
+    // Print the PUBLIC GitHub Pages URL, not the raw /exec one: the wrapper forwards its
+    // query string to the iframe, so ?machine=5 still deep-links. Printed stickers then
+    // survive a redeploy of the Apps Script, which changes nothing about this address.
+    // ?src=gas falls back to the direct /exec URL if Pages is ever unavailable.
+    tplQ.baseUrl = e.parameter.src === 'gas'
+      ? ScriptApp.getService().getUrl()
+      : COUNTER_PUBLIC_URL_;
     tplQ.machinesJson = JSON.stringify(
       getCounterOverview().machines.map(function (m) { return m.machine; }));
     return tplQ.evaluate().setTitle('Counter Entry — QR & Guide')
