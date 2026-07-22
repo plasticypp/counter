@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dispatch-proxy",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-01",
+  "workers_dev": true,
+  "rules": [
+    { "type": "Text", "globs": ["**/*.html"], "fallthrough": true }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

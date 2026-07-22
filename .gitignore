@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Credentials — .clasprc.json holds Google OAuth tokens. It normally lives in the
+# home directory, but ignore it here so a stray copy can never be committed.
+.clasprc.json
+# Google OAuth client secret (GOCSPX-...). Never commit.
+creds.json
+client_secret*.json
+.dev.vars
+.env
+.env.*
+*.pem
+
+# Cloudflare / Wrangler
+.wrangler/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/

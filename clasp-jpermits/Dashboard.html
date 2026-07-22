@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root {
+    --ink: #1a1a17; --paper: #f6f3ec; --line: #d8d2c2; --muted: #6b6656;
+    --head-bg: #22201b; --head-fg: #f3ede0;
+    --m1: #6fa8d8; --m2: #7ec99a; --m3: #eb9b57; --m4: #ab7fca;
+    --m5: #e8697d; --m6: #55b8d6; --m7: #c9c05a; --mx: #a9a493;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--paper); color: var(--ink);
+    font-family: "Trebuchet MS", -apple-system, sans-serif;
+    font-size: 13px; line-height: 1.4;
+  }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--head-bg); color: var(--head-fg);
+    padding: 10px 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  header h1 { font-size: 14px; font-weight: 700; margin-right: 8px; letter-spacing: .02em; white-space: nowrap; }
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tab {
+    font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: .03em;
+    text-transform: uppercase; padding: 7px 12px; border: 1px solid #464439;
+    background: transparent; color: var(--head-fg); cursor: pointer; border-radius: 3px;
+  }
+  .tab.active { background: #c8712c; border-color: #c8712c; }
+  .filter-wrap { margin-left: auto; position: relative; min-width: 160px; flex: 1 1 200px; max-width: 320px; }
+  .filter-wrap input {
+    width: 100%; padding: 7px 10px; border: 1px solid #464439; border-radius: 3px;
+    background: #2c2a24; color: var(--head-fg); font-family: inherit; font-size: 12px;
+  }
+  .filter-wrap input::placeholder { color: #9a9484; }
+  .filter-wrap .clear-x {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    color: #9a9484; cursor: pointer; font-size: 14px; display: none; user-select: none;
+  }
+  .filter-wrap.has-value .clear-x { display: block; }
+
+  main { padding: 10px; max-width: 100%; margin: 0 auto; }
+
+  /* ONE table for the whole page: compact data columns + fixed-width date columns, sharing
+     ONE scrollable region so the date grid stays aligned across every group with no repeated
+     header. Groups are full-width spanning rows INSIDE this same table. */
+  .table-scroll {
+    overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: #fff;
+    margin-bottom: 12px;
+  }
+  table { border-collapse: collapse; }
+  th, td { padding: 5px 7px; text-align: right; border-bottom: 1px solid #ece7d8; white-space: nowrap; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted);
+    font-weight: 700; background: #faf8f2; position: sticky; top: 0; z-index: 2;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+  .data-col { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+
+  .group-row td {
+    background: #ece7d8; font-weight: 700; font-size: 12.5px; text-align: left;
+    padding: 7px 10px; border-bottom: 1px solid var(--line); border-top: 2px solid var(--line);
+  }
+  .group-row .sub { font-weight: 400; color: var(--muted); font-size: 11.5px; margin-left: 8px; }
+  .subtotal-row td { font-weight: 700; background: #f2efe4; border-bottom: 2px solid var(--line); }
+
+  .card-group-head {
+    background: #ece7d8; padding: 8px 10px; font-weight: 700; font-size: 12.5px;
+    display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .card-group-head .sub { font-weight: 400; color: var(--muted); font-size: 11.5px; }
+
+  /* Date-grid Timeline columns: one narrow <td> per day, colored when that row is active. */
+  .date-th {
+    width: 20px; min-width: 20px; padding: 3px 0; text-align: center; font-size: 8.5px;
+    writing-mode: vertical-rl; transform: rotate(180deg); height: 46px; color: var(--muted);
+    border-left: 1px solid #f1ede0;
+  }
+  .date-th.is-today { background: #fbe8d8; color: #8f4d1c; font-weight: 700; }
+  .date-td {
+    width: 20px; min-width: 20px; padding: 0; border-left: 1px solid #f6f4ec;
+  }
+  .date-td.is-today-col { box-shadow: inset 1px 0 0 #c8712c, inset -1px 0 0 #c8712c; }
+  .date-fill { display: block; height: 100%; min-height: 22px; }
+
+  /* Grand total */
+  .grand {
+    display: flex; gap: 14px; flex-wrap: wrap; padding: 10px 12px; margin-top: 4px;
+    background: var(--head-bg); color: var(--head-fg); border-radius: 4px; font-size: 12.5px;
+  }
+  .grand b { font-size: 15px; display: block; font-variant-numeric: tabular-nums; }
+  .grand span { color: #cfc9b8; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; }
+
+  /* Mobile cards */
+  .cards { display: none; border: 1px solid var(--line); border-radius: 4px; background: #fff; overflow: hidden; }
+  .card { border-bottom: 1px solid #ece7d8; padding: 8px 10px; }
+  .card:last-child { border-bottom: none; }
+  .card-top { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 12.5px; margin-bottom: 4px; }
+  .card-top .name { color: var(--muted); font-weight: 400; font-size: 11.5px; }
+  .card-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px 8px; font-size: 11px; margin-bottom: 6px; }
+  .card-grid div { display: flex; flex-direction: column; }
+  .card-grid b { font-variant-numeric: tabular-nums; font-size: 12.5px; }
+  .card-grid span { color: var(--muted); font-size: 9.5px; text-transform: uppercase; letter-spacing: .03em; }
+  .card-bar { position: relative; height: 14px; background: #eee9dc; border-radius: 3px; margin-top: 4px; }
+  .card-bar .fill { position: absolute; top: 1px; bottom: 1px; border-radius: 3px; }
+
+  @media (max-width: 640px) {
+    .table-scroll { display: none; }
+    .cards { display: block; }
+    header h1 { display: none; }
+  }
+
+  .empty { padding: 30px; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Dispatch Dashboard</h1>
+  <div class="tabs">
+    <button class="tab active" data-view="po">By PO</button>
+    <button class="tab" data-view="product">By Product</button>
+    <button class="tab" data-view="machine">By Machine</button>
+    <button class="tab" data-view="color">By Color</button>
+  </div>
+  <div class="filter-wrap">
+    <input type="text" id="filterInput" placeholder="Filter by product code or name…">
+    <span class="clear-x" id="filterClear">✕</span>
+  </div>
+</header>
+
+<main id="main">
+  <div class="empty">Loading…</div>
+</main>
+
+<script>
+var PALETTE = {1:'var(--m1)',2:'var(--m2)',3:'var(--m3)',4:'var(--m4)',5:'var(--m5)',6:'var(--m6)',7:'var(--m7)'};
+var ROWS = [];
+var VIEW = 'po';
+var FILTER = '';
+var TODAY = null;
+
+function colorFor(machine) { return PALETTE[machine] || 'var(--mx)'; }
+function fmtNum(n) { return Math.round(n).toLocaleString(); }
+function fmtDate(d) { return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' }); }
+function fmtDay(d) { return d.getDate(); }
+function fmtMon(d) { return d.toLocaleDateString(undefined, { month: 'short' }); }
+
+function groupKeyFns() {
+  return {
+    po: { key: function (r) { return r.po; }, label: function (r) { return r.po; } },
+    product: { key: function (r) { return r.code; }, label: function (r) { return r.code + ' — ' + r.name; } },
+    machine: { key: function (r) { return r.machine; }, label: function (r) { return 'Machine ' + r.machine; } },
+    color: { key: function (r) { return r.color; }, label: function (r) { return r.color; } },
+  };
+}
+
+function sumRows(rows) {
+  return rows.reduce(function (a, r) {
+    a.orderQty += r.orderQty; a.supplied += r.supplied; a.balance += r.balance;
+    a.rmReq += r.rmReq; a.mb += r.mb;
+    return a;
+  }, { orderQty: 0, supplied: 0, balance: 0, rmReq: 0, mb: 0 });
+}
+
+function applyFilter(rows) {
+  if (!FILTER) return rows;
+  var q = FILTER.toLowerCase();
+  return rows.filter(function (r) {
+    return r.code.toLowerCase().indexOf(q) !== -1 || r.name.toLowerCase().indexOf(q) !== -1;
+  });
+}
+
+// Global date-column list shared by the whole page (all groups use the SAME columns), so the
+// timeline reads as one unified spreadsheet-style Gantt grid rather than per-group scales.
+var DATE_COLS = [];
+
+function computeDateCols(rows) {
+  var withDates = rows.filter(function (r) { return r.start && r.end; });
+  if (!TODAY) TODAY = new Date(new Date().toDateString());
+  var msDay = 86400000;
+  var minD = TODAY, maxD = new Date(TODAY.getTime() + 14 * msDay);
+  if (withDates.length) {
+    var starts = withDates.map(function (r) { return new Date(r.start); });
+    var ends = withDates.map(function (r) { return new Date(r.end); });
+    minD = new Date(Math.min.apply(null, starts.concat([TODAY])));
+    maxD = new Date(Math.max.apply(null, ends));
+  }
+  var days = Math.max(1, Math.round((maxD - minD) / msDay)) + 1;
+  var cols = [];
+  for (var i = 0; i < days; i++) cols.push(new Date(minD.getTime() + i * msDay));
+  DATE_COLS = cols;
+}
+
+function dateHeaderHtml() {
+  return DATE_COLS.map(function (d) {
+    var isToday = d.getTime() === TODAY.getTime();
+    return '<th class="date-th' + (isToday ? ' is-today' : '') + '">' + fmtDay(d) + ' ' + fmtMon(d) + '</th>';
+  }).join('');
+}
+
+function dateCellsHtml(r) {
+  if (!r.start || !r.end) {
+    return DATE_COLS.map(function () { return '<td class="date-td"></td>'; }).join('');
+  }
+  var s = new Date(r.start), e = new Date(r.end);
+  var color = colorFor(r.machine);
+  return DATE_COLS.map(function (d) {
+    var isToday = d.getTime() === TODAY.getTime();
+    var active = d >= s && d < e;
+    var cls = 'date-td' + (isToday ? ' is-today-col' : '');
+    var fill = active ? '<span class="date-fill" style="background:' + color + '" title="' + r.code + ': ' + fmtDate(s) + '–' + fmtDate(e) + '"></span>' : '';
+    return '<td class="' + cls + '">' + fill + '</td>';
+  }).join('');
+}
+
+function cardBarHtml(r) {
+  if (!r.start || !r.end || !DATE_COLS.length) return '';
+  var totalMs = DATE_COLS[DATE_COLS.length - 1].getTime() - DATE_COLS[0].getTime() + 86400000;
+  function pct(d) { return Math.max(0, Math.min(100, ((d - DATE_COLS[0]) / totalMs) * 100)); }
+  var s = new Date(r.start), e = new Date(r.end);
+  var left = pct(s), width = Math.max(1.5, pct(e) - pct(s));
+  return '<div class="card-bar"><div class="fill" style="left:' + left + '%;width:' + width + '%;background:' + colorFor(r.machine) + '"></div></div>';
+}
+
+function render() {
+  var g = groupKeyFns()[VIEW];
+  var filteredRows = applyFilter(ROWS);
+  var showRmMb = VIEW === 'color';
+
+  computeDateCols(filteredRows);
+
+  var groups = {};
+  var order = [];
+  filteredRows.forEach(function (r) {
+    var k = g.key(r);
+    if (!groups[k]) { groups[k] = { label: g.label(r), rows: [] }; order.push(k); }
+    groups[k].rows.push(r);
+  });
+  if (VIEW === 'machine') order.sort(function (a, b) { return Number(a) - Number(b); });
+  if (VIEW === 'color' || VIEW === 'po') order.sort();
+  order.forEach(function (k) { groups[k].rows.sort(function (a, b) { return (a.priority || 999) - (b.priority || 999); }); });
+
+  var grand = sumRows(filteredRows);
+  var html = '';
+
+  if (!order.length) {
+    document.getElementById('main').innerHTML = '<div class="empty">No rows match' + (FILTER ? ' "' + FILTER + '"' : '') + '.</div>';
+    return;
+  }
+
+  var extraTh = showRmMb ? '<th>RM</th><th>MB</th>' : '';
+  var dateHeader = dateHeaderHtml();
+  var totalCols = 6 + (showRmMb ? 2 : 0) + DATE_COLS.length;
+
+  // ONE table for the whole page: date-column header defined once, group headers and
+  // subtotals rendered as full-width spanning rows inside the same <tbody> so the date
+  // columns never repeat and stay perfectly aligned across every group.
+  html += '<div class="table-scroll"><table><thead><tr>' +
+    '<th>Code</th><th>Item</th><th>Qty</th><th>Sup</th><th>Bal</th>' + extraTh + '<th>D</th>' + dateHeader +
+    '</tr></thead><tbody>';
+
+  order.forEach(function (k) {
+    var grp = groups[k];
+    var sub = sumRows(grp.rows);
+
+    html += '<tr class="group-row"><td colspan="' + totalCols + '">' +
+      '<span>' + grp.label + '</span><span class="sub">' + grp.rows.length + ' item' + (grp.rows.length === 1 ? '' : 's') + '</span>' +
+      '</td></tr>';
+
+    grp.rows.forEach(function (r) {
+      var extraTd = showRmMb ? '<td class="num">' + fmtNum(r.rmReq) + '</td><td class="num">' + fmtNum(r.mb) + '</td>' : '';
+      html += '<tr>' +
+        '<td class="data-col">' + r.code + '</td>' +
+        '<td class="data-col">' + r.name + '</td>' +
+        '<td class="num">' + fmtNum(r.orderQty) + '</td>' +
+        '<td class="num">' + fmtNum(r.supplied) + '</td>' +
+        '<td class="num">' + fmtNum(r.balance) + '</td>' +
+        extraTd +
+        '<td class="num">' + (r.days || '—') + '</td>' +
+        dateCellsHtml(r) +
+        '</tr>';
+    });
+
+    var extraTf = showRmMb ? '<td class="num">' + fmtNum(sub.rmReq) + '</td><td class="num">' + fmtNum(sub.mb) + '</td>' : '';
+    var dateFootCells = DATE_COLS.map(function () { return '<td class="date-td"></td>'; }).join('');
+    html += '<tr class="subtotal-row">' +
+      '<td colspan="2">Subtotal</td>' +
+      '<td class="num">' + fmtNum(sub.orderQty) + '</td>' +
+      '<td class="num">' + fmtNum(sub.supplied) + '</td>' +
+      '<td class="num">' + fmtNum(sub.balance) + '</td>' +
+      extraTf +
+      '<td></td>' + dateFootCells +
+      '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+
+  // Mobile cards (grouped, same order/labels as the table)
+  html += '<div class="cards">';
+  order.forEach(function (k) {
+    var grp = groups[k];
+    var sub = sumRows(grp.rows);
+    html += '<div class="card-group-head"><span>' + grp.label + '</span><span class="sub">' + grp.rows.length + ' item' + (grp.rows.length === 1 ? '' : 's') + '</span></div>';
+    grp.rows.forEach(function (r) {
+      var extraCard = showRmMb
+        ? '<div><span>RM Req</span><b>' + fmtNum(r.rmReq) + '</b></div><div><span>MB</span><b>' + fmtNum(r.mb) + '</b></div>'
+        : '';
+      html += '<div class="card">' +
+        '<div class="card-top"><span>' + r.code + '</span><span class="name">' + r.name + '</span></div>' +
+        '<div class="card-grid">' +
+        '<div><span>Qty</span><b>' + fmtNum(r.orderQty) + '</b></div>' +
+        '<div><span>Supplied</span><b>' + fmtNum(r.supplied) + '</b></div>' +
+        '<div><span>Balance</span><b>' + fmtNum(r.balance) + '</b></div>' +
+        '<div><span>Days</span><b>' + (r.days || '—') + '</b></div>' +
+        extraCard +
+        '</div>' + cardBarHtml(r) + '</div>';
+    });
+    html += '<div class="card" style="font-weight:700;display:flex;justify-content:space-between">' +
+      '<span>Subtotal</span><span>' + fmtNum(sub.orderQty) + ' / ' + fmtNum(sub.supplied) + ' / ' + fmtNum(sub.balance) + '</span></div>';
+  });
+  html += '</div>';
+
+  var grandExtra = showRmMb
+    ? '<div><span>RM Req</span><b>' + fmtNum(grand.rmReq) + '</b></div><div><span>MB</span><b>' + fmtNum(grand.mb) + '</b></div>'
+    : '';
+  html += '<div class="grand">' +
+    '<div><span>Order Qty</span><b>' + fmtNum(grand.orderQty) + '</b></div>' +
+    '<div><span>Supplied</span><b>' + fmtNum(grand.supplied) + '</b></div>' +
+    '<div><span>Balance</span><b>' + fmtNum(grand.balance) + '</b></div>' +
+    grandExtra +
+    '</div>';
+
+  document.getElementById('main').innerHTML = html;
+}
+
+document.querySelectorAll('.tab').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    document.querySelectorAll('.tab').forEach(function (b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    VIEW = btn.dataset.view;
+    render();
+  });
+});
+
+var filterInput = document.getElementById('filterInput');
+var filterWrap = document.querySelector('.filter-wrap');
+var filterClear = document.getElementById('filterClear');
+filterInput.addEventListener('input', function () {
+  FILTER = filterInput.value.trim();
+  filterWrap.classList.toggle('has-value', !!FILTER);
+  render();
+});
+filterClear.addEventListener('click', function () {
+  filterInput.value = '';
+  FILTER = '';
+  filterWrap.classList.remove('has-value');
+  render();
+});
+
+google.script.run
+  .withSuccessHandler(function (data) {
+    ROWS = (data && data.rows) || [];
+    render();
+  })
+  .withFailureHandler(function (err) {
+    document.getElementById('main').innerHTML = '<div class="empty">Failed to load: ' + err + '</div>';
+  })
+  .fetchDashboardData();
+</script>
+
+</body>
+</html>

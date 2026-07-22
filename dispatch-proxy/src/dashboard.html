@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dispatch Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ---------------------------------------------------------------------
+     DESIGN: data-dense operations console (ui-ux-pro-max "Data-Dense
+     Dashboard" pattern — BI/operational dashboard style). Cool slate
+     background so the eye reads chrome vs. data instantly, a blue
+     primary for structure, amber reserved as the single "signal" accent
+     (today marker, active tab, live dot). Inter for UI text, tabular
+     monospace numerals for dense number/date columns only. Machine
+     palette: 8 hues held at matched OKLCH-equivalent chroma/lightness
+     (vivid, ~55% lightness) so every machine reads with equal visual
+     weight — no hue louder than another — while staying calm enough to
+     stare at for a full shift. Three genuinely different timeline
+     renderings per breakpoint, not one table that shrinks until it
+     breaks.
+     --------------------------------------------------------------------- */
+  :root {
+    --bg: #eef1f6;            /* cool slate-blue background */
+    --panel: #ffffff;         /* card/table ground */
+    --panel-alt: #f2f4f8;     /* group-header band */
+    --line: #dde2ea;          /* hairlines on light */
+    --ink: #16181d;           /* primary text, near-black */
+    --dim: #5b6270;           /* secondary text */
+    --faint: #9298a6;         /* tertiary / disabled */
+    --primary: #1e40af;       /* structural blue — brand/active state */
+    --amber: #b5650f;         /* signal accent — "running" indicator, reserved */
+    --amber-dim: #f6e2c4;
+    --today: #d1374a;         /* today marker — distinct from amber */
+
+    /* Machine palette: 8 vivid hues at matched chroma/lightness so every
+       color reads with equal visual weight on a light ground — bright
+       enough to pop, none oversaturated to the point of vibrating.
+       Spaced 30°+ apart on the wheel for real distinction. */
+    --m1: #2f7de0; --m2: #16a367; --m3: #e07c1a; --m4: #9457e0;
+    --m5: #e0417a; --m6: #0ea5a0; --m7: #b89a1c; --mx: #808896;
+
+    --mono: "Geist Mono", ui-monospace, "SF Mono", "Cascadia Mono", "Consolas", monospace;
+    --sans: "Geist", -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+
+    /* Type scale — 1.125 minor-third-ish steps off a 14px base, not ad-hoc
+       px picks. Every font-size in this file references one of these. */
+    --fs-2xs: 11px;   /* tertiary labels, legend chips — floor for this UI */
+    --fs-xs: 12px;    /* table headers, meta text */
+    --fs-sm: 13px;    /* secondary body, item names */
+    --fs-base: 14px;  /* primary body / default */
+    --fs-md: 15px;    /* table data cells — the numbers people scan all day */
+    --fs-lg: 17px;    /* group labels, card titles */
+    --fs-xl: 20px;    /* subtotal figures */
+    --fs-2xl: 26px;   /* grand-total hero figures */
+
+    /* Spacing scale — 4px base grid. */
+    --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { color-scheme: light; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: var(--sans);
+    font-size: var(--fs-base); line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* ---------------- header / controls ---------------- */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: linear-gradient(180deg, #ffffff 0%, #f7f8fb 100%);
+    border-bottom: 1px solid var(--line);
+    padding: var(--sp-3) var(--sp-4); display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: var(--sp-2); margin-right: var(--sp-1); }
+  .brand .dot {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--amber);
+    box-shadow: 0 0 8px 1px var(--amber);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+  header h1 {
+    font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--ink); white-space: nowrap;
+  }
+
+  .tabs { display: flex; gap: 2px; background: var(--panel-alt); padding: 3px; border-radius: 6px; border: 1px solid var(--line); }
+  .tab {
+    font-family: var(--sans); font-size: var(--fs-sm); font-weight: 600; letter-spacing: .01em;
+    padding: 8px 14px; border: none; border-radius: 4px;
+    background: transparent; color: var(--dim); cursor: pointer;
+    transition: color .12s, background .12s;
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.active { background: var(--primary); color: #fff; }
+
+  .filter-wrap { margin-left: auto; position: relative; min-width: 170px; flex: 1 1 240px; max-width: 340px; }
+  .filter-wrap input {
+    width: 100%; padding: 9px 12px 9px 32px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--panel); color: var(--ink); font-family: var(--sans); font-size: var(--fs-sm);
+  }
+  .filter-wrap input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(30,64,175,.14); }
+  .filter-wrap input::placeholder { color: var(--faint); }
+  .filter-wrap::before {
+    content: '⌕'; position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+    color: var(--faint); font-size: 15px; pointer-events: none;
+  }
+  .filter-wrap .clear-x {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    color: var(--faint); cursor: pointer; font-size: 14px; display: none; user-select: none;
+  }
+  .filter-wrap .clear-x:hover { color: var(--ink); }
+  .filter-wrap.has-value .clear-x { display: block; }
+
+  .clock {
+    font-family: var(--mono); font-size: var(--fs-xs); color: var(--dim);
+    white-space: nowrap; font-variant-numeric: tabular-nums; padding-left: var(--sp-1);
+  }
+  .clock b { color: var(--ink); font-weight: 700; }
+
+  main { padding: var(--sp-4); max-width: 100%; margin: 0 auto; }
+
+  /* ---------------- legend ---------------- */
+  .legend {
+    display: flex; gap: var(--sp-3); flex-wrap: wrap; align-items: center;
+    padding: var(--sp-2) var(--sp-1) var(--sp-3); font-family: var(--sans); font-size: var(--fs-xs); font-weight: 500; color: var(--dim);
+  }
+  .legend .chip { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .chip i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .legend .today-chip i { background: var(--today); border-radius: 50%; }
+
+  /* ---------------- desktop: unified table ---------------- */
+  .table-scroll {
+    overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+    margin-bottom: var(--sp-4);
+  }
+  table { border-collapse: collapse; width: max-content; min-width: 100%; }
+  th, td {
+    padding: var(--sp-2) 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap;
+    font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-md); font-weight: 600;
+  }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th {
+    font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: .05em; color: var(--dim);
+    font-weight: 700; background: var(--panel-alt); position: sticky; top: 0; z-index: 3;
+    border-bottom: 1px solid var(--line); padding-top: 10px; padding-bottom: 10px;
+  }
+  td:nth-child(2) { font-family: var(--sans); color: var(--ink); font-weight: 500; font-size: var(--fs-sm); }
+  .data-col { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+  td:first-child.data-col { font-weight: 700; }
+  tbody tr:not(.group-row):not(.subtotal-row):hover td:not(.date-td) { background: var(--panel-alt); }
+
+  .group-row td {
+    background: var(--panel-alt); font-family: var(--sans); font-weight: 700; font-size: var(--fs-lg);
+    text-align: left; color: var(--primary);
+    padding: var(--sp-3) var(--sp-3); border-bottom: 1px solid var(--line); border-top: 1px solid var(--line);
+  }
+  .group-row .sub {
+    font-family: var(--sans); font-weight: 500; color: var(--dim); font-size: var(--fs-xs); margin-left: var(--sp-3);
+  }
+  .subtotal-row td { font-weight: 800; background: var(--panel-alt); color: var(--ink); border-bottom: 1px solid var(--line); font-size: var(--fs-md); }
+  .subtotal-row td:first-child { font-family: var(--sans); color: var(--dim); font-weight: 700; text-transform: uppercase; font-size: var(--fs-2xs); letter-spacing: .04em; }
+
+  /* date grid: THE focal element — wide columns, tall bars, bold labels.
+     Everything else in the row (code/qty/etc) stays compact by contrast. */
+  .date-th {
+    width: 36px; min-width: 36px; padding: var(--sp-2) 0; text-align: center; font-size: var(--fs-xs);
+    writing-mode: vertical-rl; transform: rotate(180deg); height: 66px; color: var(--dim);
+    border-left: 1px solid var(--line); font-weight: 700;
+  }
+  .date-th.is-today { background: rgba(194,63,31,.12); color: var(--today); font-weight: 800; }
+  .date-td { width: 36px; min-width: 36px; padding: 4px 3px; border-left: 1px solid var(--line); }
+  .date-td.is-today-col { box-shadow: inset 2px 0 0 var(--today), inset -2px 0 0 var(--today); }
+  tr:not(.group-row):not(.subtotal-row) .date-td { padding-top: 6px; padding-bottom: 6px; }
+  .date-fill { display: block; height: 100%; min-height: 32px; border-radius: 3px; }
+
+  /* ---------------- grand total strip ---------------- */
+  .grand {
+    display: flex; gap: 0; flex-wrap: wrap; margin-top: 2px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+  }
+  .grand div { padding: var(--sp-3) var(--sp-4); flex: 1 1 140px; border-right: 1px solid var(--line); }
+  .grand div:last-child { border-right: none; }
+  .grand b { font-family: var(--mono); font-size: var(--fs-2xl); font-weight: 700; display: block; color: var(--primary); letter-spacing: -.01em; }
+  .grand span { color: var(--dim); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: .06em; font-family: var(--sans); font-weight: 600; }
+
+  /* ---------------- tablet: proportional single-bar timeline ---------------- */
+  .tablet-cards { display: none; }
+  .tcard-group {
+    background: var(--panel-alt); padding: var(--sp-3); font-family: var(--sans); font-weight: 700;
+    font-size: var(--fs-lg); color: var(--primary); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    display: flex; justify-content: space-between;
+  }
+  .tcard-group .sub { font-family: var(--sans); font-weight: 500; color: var(--dim); font-size: var(--fs-xs); }
+  .tcard {
+    display: grid; grid-template-columns: 1.1fr repeat(5, 0.55fr) 2fr; gap: var(--sp-2); align-items: center;
+    padding: var(--sp-3); border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: var(--fs-sm);
+  }
+  .tcard:last-child { border-bottom: none; }
+  .tcard .code { font-weight: 700; color: var(--ink); font-family: var(--sans); font-size: var(--fs-md); }
+  .tcard .code small { display: block; color: var(--dim); font-weight: 500; font-family: var(--sans); font-size: var(--fs-xs); margin-top: 2px; }
+  .tcard .val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+  .tcard .val .lbl { display: block; color: var(--faint); font-size: var(--fs-2xs); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
+  .prop-bar { position: relative; height: 28px; background: var(--panel-alt); border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
+  .prop-bar .fill { position: absolute; top: 0; bottom: 0; border-radius: 13px; }
+  .prop-bar .today-mark { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--today); z-index: 2; }
+  .tcard-sub {
+    display: flex; justify-content: space-between; padding: var(--sp-2) var(--sp-3); background: var(--panel-alt);
+    font-family: var(--mono); font-weight: 700; font-size: var(--fs-sm); color: var(--ink); border-bottom: 1px solid var(--line);
+  }
+
+  /* ---------------- mobile: stacked cards, single bar, minimal chrome ---------------- */
+  .cards { display: none; }
+  .card-group-head {
+    background: var(--panel-alt); padding: var(--sp-3); font-family: var(--sans); font-weight: 700; font-size: var(--fs-lg);
+    color: var(--primary); display: flex; justify-content: space-between; gap: var(--sp-2);
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  }
+  .card-group-head .sub { font-family: var(--sans); font-weight: 500; color: var(--dim); font-size: var(--fs-xs); }
+  .card { border-bottom: 1px solid var(--line); padding: var(--sp-3); }
+  .card:last-child { border-bottom: none; }
+  .card-top { display: flex; justify-content: space-between; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+  .card-top .code { font-weight: 700; font-size: var(--fs-md); font-family: var(--sans); }
+  .card-top .name { color: var(--dim); font-weight: 500; font-size: var(--fs-xs); text-align: right; max-width: 55%; }
+  .card-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 8px; font-family: var(--mono);
+    font-size: var(--fs-sm); margin-bottom: var(--sp-2);
+  }
+  .card-grid div { display: flex; flex-direction: column; }
+  .card-grid b { font-variant-numeric: tabular-nums; font-size: var(--fs-md); font-weight: 700; color: var(--ink); }
+  .card-grid span { color: var(--faint); font-size: var(--fs-2xs); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+  .card .prop-bar { height: 26px; margin-top: var(--sp-1); }
+  .card .dates { display: flex; justify-content: space-between; font-family: var(--mono); font-size: var(--fs-xs); font-weight: 600; color: var(--dim); margin-top: var(--sp-1); }
+
+  .table-scroll, .cards, .tablet-cards { border-radius: 8px; background: var(--panel); border: 1px solid var(--line); margin-bottom: var(--sp-4); overflow: hidden; }
+  .tablet-cards { overflow-x: hidden; overflow-y: auto; }
+
+  /* --- breakpoints: three distinct renderings, not one shrinking table --- */
+  @media (max-width: 1000px) {
+    .table-scroll { display: none; }
+    .tablet-cards { display: block; }
+  }
+  @media (max-width: 620px) {
+    .tablet-cards { display: none; }
+    .cards { display: block; }
+    header h1 { display: none; }
+    .tcard { grid-template-columns: 1fr; }
+  }
+
+  .empty { padding: 48px 20px; text-align: center; color: var(--dim); font-family: var(--sans); font-weight: 500; font-size: var(--fs-base); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><span class="dot"></span><h1>Dispatch Console</h1></div>
+  <div class="tabs">
+    <button class="tab active" data-view="po">By PO</button>
+    <button class="tab" data-view="product">By Product</button>
+    <button class="tab" data-view="machine">By Machine</button>
+    <button class="tab" data-view="color">By Color</button>
+  </div>
+  <div class="filter-wrap">
+    <input type="text" id="filterInput" placeholder="filter code or name…">
+    <span class="clear-x" id="filterClear">✕</span>
+  </div>
+  <div class="clock" id="clock"></div>
+</header>
+
+<main id="main">
+  <div class="empty">loading…</div>
+</main>
+
+<script>
+var PALETTE = {1:'var(--m1)',2:'var(--m2)',3:'var(--m3)',4:'var(--m4)',5:'var(--m5)',6:'var(--m6)',7:'var(--m7)'};
+var ROWS = [];
+var VIEW = 'po';
+var FILTER = '';
+var TODAY = null;
+var MACHINES_SEEN = [];
+
+function colorFor(machine) { return PALETTE[machine] || 'var(--mx)'; }
+function fmtNum(n) { return Math.round(n).toLocaleString(); }
+function fmtDate(d) { return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' }); }
+function fmtDay(d) { return d.getDate(); }
+function fmtMon(d) { return d.toLocaleDateString(undefined, { month: 'short' }); }
+
+function groupKeyFns() {
+  return {
+    po: { key: function (r) { return r.po; }, label: function (r) { return r.po; } },
+    product: { key: function (r) { return r.code; }, label: function (r) { return r.code + ' — ' + r.name; } },
+    machine: { key: function (r) { return r.machine; }, label: function (r) { return 'Machine ' + r.machine; } },
+    color: { key: function (r) { return r.color; }, label: function (r) { return r.color; } },
+  };
+}
+
+function sumRows(rows) {
+  return rows.reduce(function (a, r) {
+    a.orderQty += r.orderQty; a.supplied += r.supplied; a.readyStock += r.readyStock; a.balance += r.balance;
+    a.rmReq += r.rmReq; a.mb += r.mb;
+    return a;
+  }, { orderQty: 0, supplied: 0, readyStock: 0, balance: 0, rmReq: 0, mb: 0 });
+}
+
+function startClock() {
+  var el = document.getElementById('clock');
+  function tick() {
+    var d = new Date();
+    var date = d.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+    var time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    el.innerHTML = date + ' &nbsp; <b>' + time + '</b>';
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+function applyFilter(rows) {
+  if (!FILTER) return rows;
+  var q = FILTER.toLowerCase();
+  return rows.filter(function (r) {
+    return r.code.toLowerCase().indexOf(q) !== -1 || r.name.toLowerCase().indexOf(q) !== -1;
+  });
+}
+
+var DATE_COLS = [];
+
+function computeDateCols(rows) {
+  var withDates = rows.filter(function (r) { return r.start && r.end; });
+  if (!TODAY) TODAY = new Date(new Date().toDateString());
+  var msDay = 86400000;
+  var minD = TODAY, maxD = new Date(TODAY.getTime() + 14 * msDay);
+  if (withDates.length) {
+    var starts = withDates.map(function (r) { return new Date(r.start); });
+    var ends = withDates.map(function (r) { return new Date(r.end); });
+    minD = new Date(Math.min.apply(null, starts.concat([TODAY])));
+    maxD = new Date(Math.max.apply(null, ends));
+  }
+  var days = Math.max(1, Math.round((maxD - minD) / msDay)) + 1;
+  var cols = [];
+  for (var i = 0; i < days; i++) cols.push(new Date(minD.getTime() + i * msDay));
+  DATE_COLS = cols;
+}
+
+function dateHeaderHtml() {
+  return DATE_COLS.map(function (d) {
+    var isToday = d.getTime() === TODAY.getTime();
+    return '<th class="date-th' + (isToday ? ' is-today' : '') + '">' + fmtDay(d) + ' ' + fmtMon(d) + '</th>';
+  }).join('');
+}
+
+function dateCellsHtml(r) {
+  if (!r.start || !r.end) {
+    return DATE_COLS.map(function () { return '<td class="date-td"></td>'; }).join('');
+  }
+  var s = new Date(r.start), e = new Date(r.end);
+  var color = colorFor(r.machine);
+  return DATE_COLS.map(function (d) {
+    var isToday = d.getTime() === TODAY.getTime();
+    var active = d >= s && d < e;
+    var cls = 'date-td' + (isToday ? ' is-today-col' : '');
+    var fill = active ? '<span class="date-fill" style="background:' + color + '" title="' + r.code + ': ' + fmtDate(s) + '–' + fmtDate(e) + '"></span>' : '';
+    return '<td class="' + cls + '">' + fill + '</td>';
+  }).join('');
+}
+
+function proportionalBar(r) {
+  if (!r.start || !r.end || !DATE_COLS.length) return '<span style="color:var(--faint);font-family:var(--mono);font-size:10.5px">not scheduled</span>';
+  var rangeStart = DATE_COLS[0].getTime();
+  var totalMs = DATE_COLS[DATE_COLS.length - 1].getTime() - rangeStart + 86400000;
+  function pct(d) { return Math.max(0, Math.min(100, ((d - rangeStart) / totalMs) * 100)); }
+  var s = new Date(r.start), e = new Date(r.end);
+  var left = pct(s.getTime()), width = Math.max(1.5, pct(e.getTime()) - left);
+  var todayPct = pct(TODAY.getTime());
+  var todayMark = (todayPct >= 0 && todayPct <= 100) ? '<div class="today-mark" style="left:' + todayPct + '%"></div>' : '';
+  return '<div class="prop-bar">' + todayMark +
+    '<div class="fill" style="left:' + left + '%;width:' + width + '%;background:' + colorFor(r.machine) + '"></div></div>';
+}
+
+function render() {
+  var g = groupKeyFns()[VIEW];
+  var filteredRows = applyFilter(ROWS);
+  var showRmMb = VIEW === 'color';
+
+  computeDateCols(filteredRows);
+  MACHINES_SEEN = Array.from(new Set(filteredRows.map(function (r) { return r.machine; }))).sort(function (a, b) { return a - b; });
+
+  var groups = {};
+  var order = [];
+  filteredRows.forEach(function (r) {
+    var k = g.key(r);
+    if (!groups[k]) { groups[k] = { label: g.label(r), rows: [] }; order.push(k); }
+    groups[k].rows.push(r);
+  });
+  if (VIEW === 'machine') order.sort(function (a, b) { return Number(a) - Number(b); });
+  if (VIEW === 'color' || VIEW === 'po') order.sort();
+  order.forEach(function (k) { groups[k].rows.sort(function (a, b) { return (a.priority || 999) - (b.priority || 999); }); });
+
+  var grand = sumRows(filteredRows);
+
+  if (!order.length) {
+    document.getElementById('main').innerHTML = '<div class="empty">no rows match' + (FILTER ? ' "' + FILTER + '"' : '') + '</div>';
+    return;
+  }
+
+  var html = '';
+
+  // ---- legend ----
+  html += '<div class="legend">';
+  MACHINES_SEEN.forEach(function (m) {
+    html += '<span class="chip"><i style="background:' + colorFor(m) + '"></i>Machine ' + m + '</span>';
+  });
+  html += '<span class="chip today-chip"><i></i>Today</span></div>';
+
+  var extraTh = showRmMb ? '<th>RM</th><th>MB</th>' : '';
+  var dateHeader = dateHeaderHtml();
+  var totalCols = 7 + (showRmMb ? 2 : 0) + DATE_COLS.length;
+
+  // ---- desktop: single unified table ----
+  html += '<div class="table-scroll"><table><thead><tr>' +
+    '<th>Code</th><th>Item</th><th>Qty</th><th>Sup</th><th>Ready</th><th>Bal</th>' + extraTh + '<th>D</th>' + dateHeader +
+    '</tr></thead><tbody>';
+  order.forEach(function (k) {
+    var grp = groups[k];
+    var sub = sumRows(grp.rows);
+    html += '<tr class="group-row"><td colspan="' + totalCols + '"><span>' + grp.label + '</span>' +
+      '<span class="sub">' + grp.rows.length + ' item' + (grp.rows.length === 1 ? '' : 's') + '</span></td></tr>';
+    grp.rows.forEach(function (r) {
+      var extraTd = showRmMb ? '<td class="num">' + fmtNum(r.rmReq) + '</td><td class="num">' + fmtNum(r.mb) + '</td>' : '';
+      html += '<tr><td class="data-col">' + r.code + '</td><td class="data-col">' + r.name + '</td>' +
+        '<td class="num">' + fmtNum(r.orderQty) + '</td><td class="num">' + fmtNum(r.supplied) + '</td>' +
+        '<td class="num">' + fmtNum(r.readyStock) + '</td>' +
+        '<td class="num">' + fmtNum(r.balance) + '</td>' + extraTd +
+        '<td class="num">' + (r.days || '—') + '</td>' + dateCellsHtml(r) + '</tr>';
+    });
+    var extraTf = showRmMb ? '<td class="num">' + fmtNum(sub.rmReq) + '</td><td class="num">' + fmtNum(sub.mb) + '</td>' : '';
+    var dateFootCells = DATE_COLS.map(function () { return '<td class="date-td"></td>'; }).join('');
+    html += '<tr class="subtotal-row"><td colspan="2">Subtotal</td>' +
+      '<td class="num">' + fmtNum(sub.orderQty) + '</td><td class="num">' + fmtNum(sub.supplied) + '</td>' +
+      '<td class="num">' + fmtNum(sub.readyStock) + '</td>' +
+      '<td class="num">' + fmtNum(sub.balance) + '</td>' + extraTf + '<td></td>' + dateFootCells + '</tr>';
+  });
+  html += '</tbody></table></div>';
+
+  // ---- tablet: proportional single-bar rows, still dense/tabular ----
+  html += '<div class="tablet-cards">';
+  order.forEach(function (k) {
+    var grp = groups[k];
+    var sub = sumRows(grp.rows);
+    html += '<div class="tcard-group"><span>' + grp.label + '</span><span class="sub">' + grp.rows.length + ' item' + (grp.rows.length === 1 ? '' : 's') + '</span></div>';
+    grp.rows.forEach(function (r) {
+      html += '<div class="tcard">' +
+        '<span class="code">' + r.code + '<small>' + r.name + '</small></span>' +
+        '<span class="val"><span class="lbl">Qty</span>' + fmtNum(r.orderQty) + '</span>' +
+        '<span class="val"><span class="lbl">Sup</span>' + fmtNum(r.supplied) + '</span>' +
+        '<span class="val"><span class="lbl">Ready</span>' + fmtNum(r.readyStock) + '</span>' +
+        '<span class="val"><span class="lbl">Bal</span>' + fmtNum(r.balance) + '</span>' +
+        '<span class="val"><span class="lbl">Days</span>' + (r.days || '—') + '</span>' +
+        proportionalBar(r) +
+        '</div>';
+    });
+    html += '<div class="tcard-sub"><span>Subtotal</span><span>' + fmtNum(sub.orderQty) + ' / ' + fmtNum(sub.supplied) + ' / ' + fmtNum(sub.readyStock) + ' / ' + fmtNum(sub.balance) + '</span></div>';
+  });
+  html += '</div>';
+
+  // ---- mobile: stacked cards, minimal, one bar with start/end labels ----
+  html += '<div class="cards">';
+  order.forEach(function (k) {
+    var grp = groups[k];
+    var sub = sumRows(grp.rows);
+    html += '<div class="card-group-head"><span>' + grp.label + '</span><span class="sub">' + grp.rows.length + ' item' + (grp.rows.length === 1 ? '' : 's') + '</span></div>';
+    grp.rows.forEach(function (r) {
+      var extraCard = showRmMb
+        ? '<div><span>RM Req</span><b>' + fmtNum(r.rmReq) + '</b></div><div><span>MB</span><b>' + fmtNum(r.mb) + '</b></div>'
+        : '';
+      var dates = (r.start && r.end)
+        ? '<div class="dates"><span>' + fmtDate(new Date(r.start)) + '</span><span>' + fmtDate(new Date(r.end)) + '</span></div>'
+        : '';
+      html += '<div class="card">' +
+        '<div class="card-top"><span class="code">' + r.code + '</span><span class="name">' + r.name + '</span></div>' +
+        '<div class="card-grid">' +
+        '<div><span>Qty</span><b>' + fmtNum(r.orderQty) + '</b></div>' +
+        '<div><span>Supplied</span><b>' + fmtNum(r.supplied) + '</b></div>' +
+        '<div><span>Ready</span><b>' + fmtNum(r.readyStock) + '</b></div>' +
+        '<div><span>Balance</span><b>' + fmtNum(r.balance) + '</b></div>' +
+        '<div><span>Days</span><b>' + (r.days || '—') + '</b></div>' +
+        extraCard +
+        '</div>' + proportionalBar(r) + dates + '</div>';
+    });
+    html += '<div class="card" style="font-weight:700;display:flex;justify-content:space-between;font-family:var(--mono);font-size:var(--fs-sm);background:var(--panel-alt)">' +
+      '<span>Subtotal</span><span>' + fmtNum(sub.orderQty) + ' / ' + fmtNum(sub.supplied) + ' / ' + fmtNum(sub.readyStock) + ' / ' + fmtNum(sub.balance) + '</span></div>';
+  });
+  html += '</div>';
+
+  var grandExtra = showRmMb
+    ? '<div><span>RM Req</span><b>' + fmtNum(grand.rmReq) + '</b></div><div><span>MB</span><b>' + fmtNum(grand.mb) + '</b></div>'
+    : '';
+  html += '<div class="grand">' +
+    '<div><span>Order Qty</span><b>' + fmtNum(grand.orderQty) + '</b></div>' +
+    '<div><span>Supplied</span><b>' + fmtNum(grand.supplied) + '</b></div>' +
+    '<div><span>Ready Stock</span><b>' + fmtNum(grand.readyStock) + '</b></div>' +
+    '<div><span>Balance</span><b>' + fmtNum(grand.balance) + '</b></div>' +
+    grandExtra +
+    '</div>';
+
+  document.getElementById('main').innerHTML = html;
+}
+
+document.querySelectorAll('.tab').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    document.querySelectorAll('.tab').forEach(function (b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    VIEW = btn.dataset.view;
+    render();
+  });
+});
+
+var filterInput = document.getElementById('filterInput');
+var filterWrap = document.querySelector('.filter-wrap');
+var filterClear = document.getElementById('filterClear');
+filterInput.addEventListener('input', function () {
+  FILTER = filterInput.value.trim();
+  filterWrap.classList.toggle('has-value', !!FILTER);
+  render();
+});
+filterClear.addEventListener('click', function () {
+  filterInput.value = '';
+  FILTER = '';
+  filterWrap.classList.remove('has-value');
+  render();
+});
+
+startClock();
+
+fetch('/api/data')
+  .then(function (r) { return r.json(); })
+  .then(function (data) {
+    if (data && data.error) throw new Error(data.error);
+    ROWS = (data && data.rows) || [];
+    render();
+  })
+  .catch(function (err) {
+    document.getElementById('main').innerHTML = '<div class="empty">failed to load: ' + err + '</div>';
+  });
+</script>
+
+</body>
+</html>
