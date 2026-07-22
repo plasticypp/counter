@@ -211,6 +211,13 @@ var COUNTER_HEADERS_ = ['Timestamp', 'Machine', 'Code', 'Counter', 'Rejection', 
 // stay valid across Apps Script redeployments.
 var COUNTER_PUBLIC_URL_ = 'https://plasticypp.github.io/counter/';
 
+// The shop floor's machine roster. The counter overview used to derive its list purely from
+// Dispatch + the production log, so a machine with nothing scheduled on it was invisible and
+// could never be logged against — a new machine could not record its FIRST reading. This is
+// the authoritative list; Dispatch and the log are still unioned in, so nothing is lost if a
+// machine number appears there that is missing here.
+var COUNTER_MACHINES_ = [1, 2, 3, 4, 5, 6, 7, 8];
+
 var OPERATORS_SHEET_ = 'Operators';
 var OPERATORS_SEED_ = ['Rambihari', 'Ganesh', 'Vinod', 'Niraj', 'Mohan', 'TBM', 'Pradhan'];
 
@@ -233,26 +240,46 @@ function operatorNames_(ss) {
   }
   var lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
-  return sh.getRange(2, 1, lastRow - 1, 2).getValues()
+  // Columns: Name | Active | Hindi. Hindi is optional and DISPLAY ONLY — the log always
+  // stores the English name so the sheet stays sortable and readable in one script.
+  var lastColOP = Math.max(sh.getLastColumn(), 2);
+  return sh.getRange(2, 1, lastRow - 1, lastColOP).getValues()
     .filter(function (r) {
       if (!r[0]) return false;
       // Blank Active is treated as active, so a one-column list works with no extra typing.
       var a = String(r[1]).trim().toLowerCase();
       return a === '' || a === 'yes' || a === 'y' || a === 'true' || a === '1';
     })
-    .map(function (r) { return String(r[0]).trim(); });
+    .map(function (r) {
+      var en = String(r[0]).trim();
+      var hi = r.length > 2 && r[2] ? String(r[2]).trim() : '';
+      return { name: en, hi: hi || en };
+    });
+}
+
+function operatorNameList_(ss) {
+  // Plain English names, for validating a submitted operator against the sheet.
+  return operatorNames_(ss).map(function (o) { return o.name; });
 }
 
 function setUpOperatorsSheet() {
   var ss = getSpreadsheet_();
   var existed = !!ss.getSheetByName(OPERATORS_SHEET_);
-  var names = operatorNames_(ss);
-  ss.getSheetByName(OPERATORS_SHEET_).activate();
+  var shOP = ss.getSheetByName(OPERATORS_SHEET_);
+  // Ensure the Hindi column exists — it is what the operator tiles display.
+  if (String(shOP.getRange(1, 3).getValue()).trim() === '') {
+    shOP.getRange(1, 3).setValue('Hindi')
+      .setFontWeight('bold').setBackground('#22201b').setFontColor('#f3ede0');
+    shOP.setColumnWidth(3, 160);
+  }
+  var names = operatorNameList_(ss);
+  shOP.activate();
   SpreadsheetApp.getUi().alert(
     (existed ? 'Operators sheet already existed.' : 'Created the Operators sheet.')
     + '\n\nActive operators (' + names.length + '): ' + (names.join(', ') || '(none)')
-    + '\n\nAdd or remove rows here — set Active to No to retire someone without '
-    + 'losing their past entries.');
+    + '\n\nColumns: Name | Active | Hindi. Fill the Hindi column to show names in '
+    + 'Devanagari on the counter page — the log still stores the English name.'
+    + '\nSet Active to No to retire someone without losing their past entries.');
 }
 
 function counterSheet_(ss) {
@@ -310,12 +337,19 @@ function counterProducts_(ss, machine) {
   return head.concat(tail);
 }
 
-function counterStateFor_(ss, machine) {
-  var rows = counterRows_(counterSheet_(ss));
+function counterStateFor_(ss, machine, opts) {
+  // opts.rows lets a caller pass the log in once instead of re-reading it per machine, and
+  // opts.skipProducts omits the Masters-wide product list. The overview loops over every
+  // machine, so without these it re-read Masters and the whole log once PER TILE.
+  opts = opts || {};
+  var rows = opts.rows || counterRows_(counterSheet_(ss));
   var mine = rows.filter(function (r) { return Number(r[1]) === Number(machine); });
 
   var code = null, lastCounter = null, lastAt = '', lastOperator = '';
-  var totals = { production: 0, rejection: 0, runner: 0 };
+  // gross = counter output; net = gross less rejected pieces. Rejection is subtracted because
+  // the counter ticks on every piece the machine makes, good or scrap.
+  var totals = { production: 0, gross: 0, rejection: 0, runner: 0, hours: 0, rate: 0 };
+  var readings = [];
 
   if (mine.length) {
     var last = mine[mine.length - 1];
@@ -330,19 +364,48 @@ function counterStateFor_(ss, machine) {
     // at the tail that still carries the same code.
     var startIdx = mine.length - 1;
     while (startIdx > 0 && String(mine[startIdx - 1][2]) === code) startIdx--;
+
     for (var i = startIdx; i < mine.length; i++) {
-      if (i > startIdx) {
-        totals.production += Number(mine[i][3]) - Number(mine[i - 1][3]);
+      // The counter is zeroed when a run starts, so the FIRST reading's value is itself
+      // production — output made before logging began, not a baseline to discard.
+      var grossI = i === startIdx
+        ? Number(mine[i][3]) || 0
+        : Number(mine[i][3]) - Number(mine[i - 1][3]);
+      var rejI = Number(mine[i][4]) || 0;
+
+      var tsI = mine[i][0] instanceof Date ? mine[i][0] : null;
+      var hrsI = 0;
+      if (i > startIdx && tsI && mine[i - 1][0] instanceof Date) {
+        hrsI = (tsI.getTime() - mine[i - 1][0].getTime()) / 3600000;
       }
-      totals.rejection += Number(mine[i][4]) || 0;
+
+      totals.gross += grossI;
+      totals.rejection += rejI;
       totals.runner += Number(mine[i][5]) || 0;
+      totals.hours += hrsI;
+
+      readings.push({
+        at: tsI ? Utilities.formatDate(tsI, Session.getScriptTimeZone(), 'd MMM h:mm a') : '',
+        counter: Number(mine[i][3]) || 0,
+        gross: grossI, rejection: rejI, net: grossI - rejI,
+        runner: Number(mine[i][5]) || 0,
+        hours: hrsI,
+        // Rate is only meaningful across a measured gap, so the first reading has none.
+        // isFinite guards a zero/NaN elapsed time, which would otherwise render as "NaN/hr".
+        rate: (hrsI > 0 && isFinite((grossI - rejI) / hrsI)) ? (grossI - rejI) / hrsI : null,
+        operator: mine[i][6] ? String(mine[i][6]) : '',
+        first: i === startIdx,
+      });
     }
+    totals.production = totals.gross - totals.rejection;
+    totals.rate = totals.hours > 0 ? totals.production / totals.hours : 0;
+    readings.reverse();   // newest first for display
   }
 
   return {
     machine: Number(machine), code: code, lastCounter: lastCounter, lastAt: lastAt,
-    lastOperator: lastOperator, totals: totals,
-    products: counterProducts_(ss, machine), lastProduction: 0,
+    lastOperator: lastOperator, totals: totals, readings: readings,
+    products: opts.skipProducts ? [] : counterProducts_(ss, machine), lastProduction: 0,
   };
 }
 
@@ -352,7 +415,64 @@ function getCounterState(machine) {
   var ss = getSpreadsheet_();
   var st = counterStateFor_(ss, m);
   st.operators = operatorNames_(ss);
+  st.color = COUNTER_COLORS_[m] || '#6b7280';
+  var schGS = scheduledTodayByMachine_(ss)[m] || null;
+  st.scheduled = schGS ? {
+    code: schGS.code, balance: schGS.balance, days: schGS.days, startedOn: schGS.startedOn,
+    differs: !!(st.code && st.code !== schGS.code),
+  } : null;
   return st;
+}
+
+// Machine colours for the counter tiles. Same hues as the Dispatch Gantt palette so a machine
+// reads consistently across both views, but saturated for a white card — the spreadsheet
+// pastels wash out on screen. Machine 8 had no colour in the Gantt palette at all.
+var COUNTER_COLORS_ = {
+  1: '#2f6fb8', 2: '#2e8b62', 3: '#c9711f', 4: '#7d4bab',
+  5: '#c2413c', 6: '#1f8199', 7: '#8a8420', 8: '#a3467f',
+};
+
+function scheduledTodayByMachine_(ss) {
+  // What Dispatch says each machine should be running RIGHT NOW: the lowest-priority row on
+  // that machine whose Start..End span covers today. Returns {} when the schedule block has
+  // not been installed, so callers degrade to "no suggestion" rather than failing.
+  var out = {};
+  var dispatch = ss.getSheetByName('Dispatch');
+  if (!dispatch) return out;
+
+  var labelRowST = findInvoiceRow_(dispatch) + 1;
+  var lastRowST = dispatch.getLastRow();
+  if (lastRowST <= labelRowST) return out;
+
+  var hdrST = dispatch.getRange(labelRowST, 1, 1, dispatch.getLastColumn()).getValues()[0];
+  var iM = hdrST.indexOf('Machine'), iP = hdrST.indexOf('Priority'), iC = hdrST.indexOf('Code');
+  var iS = hdrST.indexOf('Start Date'), iE = hdrST.indexOf('End Date');
+  var iB = hdrST.indexOf('Balance'), iD = hdrST.indexOf('Days');
+  if ([iM, iC, iS, iE].indexOf(-1) !== -1) return out;   // schedule block not installed yet
+
+  var nowST = new Date();
+  var todayST = toUtcMidnightIst_(nowST);
+
+  dispatch.getRange(labelRowST + 1, 1, lastRowST - labelRowST, dispatch.getLastColumn())
+    .getValues().forEach(function (r) {
+      var mv = Number(r[iM]);
+      if (!mv || !r[iC]) return;
+      if (!(r[iS] instanceof Date) || !(r[iE] instanceof Date)) return;
+      var s = toUtcMidnightIst_(r[iS]), e = toUtcMidnightIst_(r[iE]);
+      // End Date is exclusive in the scheduler (start + days), matching the Gantt fill.
+      if (!(s.getTime() <= todayST.getTime() && todayST.getTime() < e.getTime())) return;
+
+      var prio = iP === -1 || r[iP] === '' ? 999 : Number(r[iP]);
+      var prev = out[mv];
+      if (prev && prev.priority <= prio) return;         // keep the lowest priority = current job
+      out[mv] = {
+        code: String(r[iC]), priority: prio,
+        balance: iB === -1 ? null : Number(r[iB]) || 0,
+        days: iD === -1 ? null : Number(r[iD]) || 0,
+        startedOn: Utilities.formatDate(s, Session.getScriptTimeZone(), 'd MMM'),
+      };
+    });
+  return out;
 }
 
 function getCounterOverview() {
@@ -361,6 +481,7 @@ function getCounterOverview() {
   // was logged without being scheduled still shows up rather than vanishing.
   var ss = getSpreadsheet_();
   var machines = {};
+  COUNTER_MACHINES_.forEach(function (m) { machines[m] = true; });
 
   var dispatch = ss.getSheetByName('Dispatch');
   if (dispatch) {
@@ -376,32 +497,53 @@ function getCounterOverview() {
         });
     }
   }
-  counterRows_(counterSheet_(ss)).forEach(function (r) {
+  var logRowsOV = counterRows_(counterSheet_(ss));   // the log, read exactly once
+  logRowsOV.forEach(function (r) {
     var mv = Number(r[1]);
     if (mv) machines[mv] = true;
   });
 
-  var labels = {};
+  var labels = {}, shapes = {};
   var masters = ss.getSheetByName('Masters');
   if (masters) {
     var mr = masters.getDataRange().getValues();
     var mh = mr[0];
-    var cC = mh.indexOf('Product Code'), cP = mh.indexOf('PACK SIZE'), cCol = mh.indexOf('COLOR');
+    // Pack size + colour + shape is what an operator recognises on the floor. The product
+    // CODE means nothing to them, so it becomes a subtitle rather than the headline.
+    var cC = mh.indexOf('Product Code'), cP = mh.indexOf('PACK SIZE');
+    var cCol = mh.indexOf('COLOR'), cSh = mh.indexOf('SHAPE');
     if (cC !== -1) {
       mr.slice(1).forEach(function (r) {
         if (!r[cC]) return;
-        labels[String(r[cC])] = [cP, cCol].map(function (i) { return i === -1 ? '' : r[i]; })
-          .filter(function (v) { return v !== '' && v != null; }).join(' ');
+        var pick = function (i) { return i === -1 || r[i] == null ? '' : String(r[i]).trim(); };
+        // Headline stays SHORT — pack size + colour is what distinguishes bottles at a
+        // glance, and the product column is only ~126px on a 320px phone. Shape goes to
+        // the subtitle rather than truncating the headline to "1 LT...".
+        labels[String(r[cC])] = [pick(cP), pick(cCol)].filter(Boolean).join(' ');
+        shapes[String(r[cC])] = pick(cSh);
       });
     }
   }
 
+  var schedST = scheduledTodayByMachine_(ss);
   var out = Object.keys(machines).map(Number).sort(function (a, b) { return a - b; })
     .map(function (m) {
-      var st = counterStateFor_(ss, m);
+      var st = counterStateFor_(ss, m, { rows: logRowsOV, skipProducts: true });
+      var sch = schedST[m] || null;
       return {
+        // Deliberately NOT sending st.readings: the tiles show totals only, and shipping
+        // every reading for every machine bloats the payload the operator waits on.
         machine: m, code: st.code, label: st.code ? (labels[st.code] || '') : '',
+        shape: st.code ? (shapes[st.code] || '') : '',
         lastAt: st.lastAt, lastOperator: st.lastOperator, totals: st.totals,
+        color: COUNTER_COLORS_[m] || '#6b7280',
+        scheduled: sch ? {
+          code: sch.code, label: labels[sch.code] || '',
+          balance: sch.balance, days: sch.days, startedOn: sch.startedOn,
+          // Only a MISMATCH is worth an operator's attention — if the logged product already
+          // matches the plan there is nothing to flag.
+          differs: !!(st.code && st.code !== sch.code),
+        } : null,
       };
     });
   return { machines: out, operators: operatorNames_(ss) };
@@ -428,12 +570,13 @@ function logCounterReading(p) {
   // convenience, and an unrecognised name would silently corrupt attribution.
   var operator = p.operator ? String(p.operator).trim() : '';
   if (!operator) throw new Error('Select who is entering this. / नाम चुनें।');
-  if (operatorNames_(ss).indexOf(operator) === -1) {
+  if (operatorNameList_(ss).indexOf(operator) === -1) {
     throw new Error('"' + operator + '" is not in the Operators sheet.');
   }
 
   var before = counterStateFor_(ss, machine);
-  var production = 0;
+  // First reading of a run: the counter started at zero, so its whole value is production.
+  var production = counter;
   if (before.lastCounter !== null && before.code === code) {
     // Same product still running: the counter must not go backwards. If it did, the
     // counter was replaced or rolled over — re-selecting the product re-anchors it.
@@ -446,9 +589,14 @@ function logCounterReading(p) {
 
   counterSheet_(ss).appendRow([new Date(), machine, code, counter, rejection, runner, operator]);
 
-  var after = counterStateFor_(ss, machine);
-  after.lastProduction = production;
+  var after = counterStateFor_(ss, machine, { skipProducts: true });
+  // Report NET on the confirmation so it agrees with the run totals shown alongside it.
+  after.lastProduction = production - rejection;
+  after.lastGross = production;
   after.operators = operatorNames_(ss);
+  // Return the refreshed overview too: the page goes straight back to the machine list after
+  // saving, and piggybacking it here saves a second ~2s round trip on every entry.
+  after.overview = getCounterOverview();
   return after;
 }
 
@@ -1134,6 +1282,7 @@ function doGet(e) {
     // optional &machine=N still deep-links straight to one machine's form.
     var tplC = HtmlService.createTemplateFromFile('Counter');
     tplC.machine = Number(e.parameter.machine) || 0;
+    tplC.guideUrl = ScriptApp.getService().getUrl() + '?action=counterQr';
     return tplC.evaluate()
       .setTitle('Counter Entry')
       // Required for the GitHub Pages wrapper to embed this page. Same approach as the

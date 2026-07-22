@@ -9,13 +9,13 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Devanagari:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#eef0f4; --card:#fff; --ink:#12141a; --muted:#666e7d; --line:#dcdfe6;
+  --bg:#eef0f4; --card:#fff; --ink:#12141a; --muted:#4a5261; --line:#dcdfe6;
   --primary:#1e40af; --amber:#b45309; --amber-soft:#fdf3e3;
   --ok:#046c4e; --ok-soft:#e8f7f1; --bad:#b42318; --bad-soft:#fdecea;
   --r:12px; --tap:52px; --sh:0 1px 2px rgba(18,20,26,.06),0 6px 20px rgba(18,20,26,.05);
 }
 @media (prefers-color-scheme:dark){
-  :root{--bg:#0e1014;--card:#171a20;--ink:#e9ebef;--muted:#98a0ad;--line:#272c35;
+  :root{--bg:#0e1014;--card:#171a20;--ink:#e9ebef;--muted:#aab2c0;--line:#272c35;
     --primary:#8aa5ff;--amber:#f0b429;--amber-soft:#2a2008;
     --ok:#34d399;--ok-soft:#0c2a20;--bad:#f87171;--bad-soft:#2c1315;
     --sh:0 1px 2px rgba(0,0,0,.5),0 6px 20px rgba(0,0,0,.38);}
@@ -29,12 +29,12 @@ body{margin:0;background:var(--bg);color:var(--ink);padding:16px 12px 48px;
   border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
 .hd{display:flex;align-items:center;justify-content:space-between;gap:10px;
   padding:12px 14px;border-bottom:1px solid var(--line)}
-.hdt{font:700 15px/1.2 inherit}
-.hds{font:500 11.5px/1 'IBM Plex Mono',monospace;color:var(--muted);margin-top:3px}
+.hdt{font:700 17px/1.15 'IBM Plex Sans Devanagari','IBM Plex Sans',sans-serif;white-space:nowrap}
+.hds{font:500 11px/1 'IBM Plex Mono',monospace;color:var(--muted);margin-top:3px;white-space:nowrap}
 /* Icon navigation. 44px minimum tap target, icon-only buttons carry aria-label. */
 .nav{display:flex;align-items:center;gap:2px}
 .ib{display:flex;align-items:center;justify-content:center;gap:6px;
-  min-width:44px;min-height:44px;padding:0 10px;margin:0;width:auto;
+  min-width:44px;min-height:44px;padding:0 6px;margin:0;width:auto;
   background:none;border:1.5px solid transparent;border-radius:10px;
   color:var(--muted);font:600 13px inherit;cursor:pointer;transition:background .15s ease,color .15s ease}
 .ib:hover:not([disabled]){background:color-mix(in srgb,var(--primary) 9%,transparent);color:var(--primary)}
@@ -42,37 +42,112 @@ body{margin:0;background:var(--bg);color:var(--ink);padding:16px 12px 48px;
 .ib[disabled]{opacity:.3;cursor:not-allowed}
 .ib svg{flex:none}
 .ib b{font-family:'IBM Plex Mono',monospace;font-size:13px}
+/* .ib is shared by <button> and <a>; anchors need these reset explicitly. */
+a.ib{text-decoration:none;-webkit-tap-highlight-color:transparent}
 
-/* read mode */
-/* Tiles: two per row on a phone, wider screens fit more. Each tile is a whole
-   tap target, so nothing depends on hitting a small row. */
-.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:14px}
-.m{display:block;text-align:left;width:100%;padding:11px 12px 12px;margin:0;
-  background:var(--card);border:1.5px solid var(--line);border-radius:12px;
-  color:inherit;font:inherit;cursor:pointer;min-height:auto;
-  transition:border-color .15s ease,background .15s ease}
-.m:hover{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 5%,transparent)}
-.m:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
-.mhd{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.mn{flex:none;width:34px;height:34px;border-radius:9px;background:var(--primary);color:#fff;
-  display:flex;align-items:center;justify-content:center;font:700 18px/1 'IBM Plex Mono',monospace}
-.m.idle .mn{background:var(--line);color:var(--muted)}
-.mc{flex:1;min-width:0;font:600 12.5px/1.25 inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ml{display:block;font-size:11px;color:var(--muted);margin-bottom:9px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:15px}
-.mp{display:block;font:700 21px/1 'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;color:var(--ok)}
-.m.idle .mp{color:var(--muted)}
-.mpu{font-size:11px;font-weight:600;opacity:.6;margin-left:3px}
-.mx{display:block;font-size:10.5px;color:var(--muted);margin-top:5px;
-  font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Language toggle. Hindi is the default; the switch flips a root attribute and CSS does
+   the rest, so no label has to be re-rendered in JS. */
+.lang{display:flex;flex:none;border:1.5px solid var(--line);border-radius:9px;overflow:hidden}
+.lb{min-width:34px;min-height:34px;padding:0 7px;border:0;background:var(--bg);
+  color:var(--muted);font:700 12px/1 inherit;cursor:pointer}
+.lb+.lb{border-left:1.5px solid var(--line)}
+.lb.on{background:var(--primary);color:#fff}
+.lb:focus-visible{outline:3px solid var(--amber);outline-offset:-3px}
+/* .en carries the English label, .hi the Hindi one. Exactly one is shown. */
+:root[data-lang="hi"] .en{display:none}
+:root[data-lang="en"] .hi:not(.keep){display:none}
+/* Operator names stay in Devanagari in both modes — a person's name is not a translation. */
+:root[data-lang="hi"] label .hn{font:600 12.5px/1 inherit;letter-spacing:.02em;color:var(--muted);opacity:1}
+:root[data-lang="en"] .opt{font-family:'IBM Plex Sans Devanagari','IBM Plex Sans',sans-serif}
+
+/* Machine stepper: full-width, thumb-height, and it NAMES the destination so there is no
+   guessing where an arrow leads. */
+.step{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 14px;
+  border-top:1px solid var(--line)}
+.sb{display:flex;align-items:center;justify-content:center;gap:8px;min-height:54px;
+  border:1.5px solid var(--line);border-radius:11px;background:var(--bg);color:var(--ink);
+  font:600 14px/1 inherit;cursor:pointer;transition:background .15s ease,border-color .15s ease}
+.sb:hover{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 6%,transparent)}
+.sb:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.sb svg{flex:none;color:var(--muted)}
+.sb b{font:700 14px/1.2 'IBM Plex Sans Devanagari','IBM Plex Sans',sans-serif}
+
+/* read mode — full-width rows, not tiles. Every machine's production sits in the same
+   vertical column so the eye scans straight down to compare; a 2-column grid zigzags.
+   One shared grid template keeps header, rows and footer aligned. */
+:root{--mgrid:28px minmax(0,1fr) 54px 34px 34px}
+/* Wider phones get roomier numeric columns; 320px needs every pixel for the name. */
+@media (min-width:380px){:root{--mgrid:32px minmax(0,1fr) 64px 44px 44px}}
+.mhead,.m,.mfoot{display:grid;grid-template-columns:var(--mgrid);gap:5px;align-items:center}
+.mhead{padding:8px 10px;border-bottom:1.5px solid var(--line);
+  background:color-mix(in srgb,var(--muted) 8%,transparent)}
+.mhead span{font:600 11.5px/1.2 'IBM Plex Mono',monospace;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden}
+.mhead .hp{font-family:'IBM Plex Sans Devanagari','IBM Plex Mono',monospace}
+.mhead .hn2{text-align:right}
+.rows{display:block}
+.m{width:100%;padding:8px 10px;margin:0;text-align:left;background:var(--card);
+  border:0;border-bottom:1px solid var(--line);border-radius:0;
+  color:inherit;font:inherit;cursor:pointer;transition:background .15s ease}
+.m:hover{background:color-mix(in srgb,var(--primary) 5%,transparent)}
+.m:focus-visible{outline:3px solid var(--amber);outline-offset:-3px}
+/* Machine number in a full-height coloured spine — the colour IS the running indicator,
+   so no separate status dot is needed. */
+.mn{grid-row:1/3;align-self:stretch;min-height:38px;border-radius:8px;background:var(--primary);
+  color:#fff;display:flex;align-items:center;justify-content:center;
+  font:700 17px/1 'IBM Plex Sans Devanagari','IBM Plex Mono',monospace}
+.m.idle .mn{background:var(--line)!important;color:var(--muted)}
+.mc{font:600 13px/1.25 inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m.idle .mc{color:var(--muted);font-weight:500}
+.mp{text-align:right;font:700 17px/1.15 'IBM Plex Mono',monospace;
+  font-variant-numeric:tabular-nums;color:var(--ok)}
+.m.idle .mp{color:var(--muted);font-weight:500}
+.mrj,.mrn{text-align:right;font:600 13px/1.15 'IBM Plex Mono',monospace;
+  font-variant-numeric:tabular-nums;color:var(--ink)}
+.m.idle .mrj,.m.idle .mrn{color:var(--muted);font-weight:400}
+/* Second line: code, operator, time — reference, deliberately quiet. */
+.msub.warn{color:var(--amber)}
+.msub{grid-column:2/6;font:500 12px/1.35 'IBM Plex Mono',monospace;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:14px}
+.mfoot{padding:10px 10px;border-top:1.5px solid var(--line);
+  background:color-mix(in srgb,var(--muted) 8%,transparent)}
+.mfoot .fl{grid-column:1/3;font:600 13px/1.2 'IBM Plex Mono',monospace;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.mfoot b{text-align:right;font:700 15px/1.15 'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+/* Scheduled-today line from Dispatch. Quiet when it agrees with what is being logged,
+   amber when it does not — a mismatch means the plan slipped or the wrong job is running. */
+.msch{display:block;margin-top:7px;padding-top:7px;border-top:1px dashed var(--line);
+  font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msch b{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--ink)}
+.msch.warn{color:var(--amber)}
+.msch.warn b{color:var(--amber)}
+.schhint{margin:7px 1px 0;font-size:13.5px;line-height:1.4;color:var(--muted)}
+.schhint b{font-family:'IBM Plex Mono',monospace}
+.schhint.warn{color:var(--amber)}
+/* Per-reading history for the current run — newest first, so the latest entry is nearest
+   the Save button the operator just used. */
+/* Five numeric columns do not fit 320px. Scroll the table itself rather than let the
+   rate column clip — a cut-off "377/h" is worse than a scrollbar. */
+.rdgs{margin-top:14px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.rtab{width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;
+  font-variant-numeric:tabular-nums;font-size:13px}
+.rtab td{padding:6px 3px;border-bottom:1px solid var(--line);white-space:nowrap}
+.rtab td:last-child{padding-right:0}
+.rtab tr:last-child td{border-bottom:0}
+.rtab .rt{color:var(--muted);font-size:12.5px}
+.rtab .rn{text-align:right;font-weight:700}
+.rtab .rr{text-align:right;color:var(--ok);font-weight:600}
+.rtab .rr.none{color:var(--muted);font-weight:400}
+.rtab .rj{text-align:right;color:var(--muted);font-size:12.5px}
+.rtab tr.firstr .rn{color:var(--muted)}
 .m.idle .mp{color:var(--muted)}
 
 /* entry mode */
 .body{padding:14px}
 .f{margin-bottom:13px}
 label{display:flex;align-items:baseline;gap:7px;margin:0 0 5px 1px}
-.en{font:600 11px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
-.hn{font-size:12px;color:var(--muted);opacity:.85}
+.en{font:600 13px/1.2 'IBM Plex Mono',monospace;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.hn{font-size:14px;color:var(--muted);opacity:1}
 select,input{width:100%;font-family:inherit;color:var(--ink);background:var(--bg);
   border:1.5px solid var(--line);border-radius:10px;outline:none;min-height:var(--tap)}
 select{padding:0 38px 0 13px;font-size:15px;font-weight:600;cursor:pointer;appearance:none;
@@ -83,26 +158,53 @@ input.sm{font-size:21px}
 input:focus,select:focus{border-color:var(--primary);
   box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 17%,transparent)}
 input.err{border-color:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 15%,transparent)}
-.hint{margin:5px 1px 0;font:500 11.5px/1.35 'IBM Plex Mono',monospace;color:var(--muted)}
+.hint{margin:6px 1px 0;font:500 13px/1.4 'IBM Plex Mono',monospace;color:var(--muted)}
 .lock{display:flex;align-items:center;gap:8px;min-height:var(--tap);padding:0 6px 0 13px;
   border:1.5px solid var(--line);border-radius:10px;
   background:color-mix(in srgb,var(--muted) 7%,transparent)}
-.lockv{flex:1;min-width:0;font:600 15px/1.3 inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lockv{flex:1;min-width:0;font:600 15px/1.25 inherit;overflow:hidden}
+.lockv > span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* The product code is reference for supervisors, not something operators read. */
+.lockv b{display:block;font:500 11px/1.3 'IBM Plex Mono',monospace;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lockv b:empty{display:none}
 .lockb{flex:none;color:var(--primary);border-color:transparent}
 .lockb b{font-weight:700}
 .pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* Quick-pick chips. auto-fit so 320px phones still get 5 across at 44px minimum;
+   8px gaps keep adjacent targets from being mis-tapped. */
+.chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(52px,1fr));gap:8px}
+.chip{min-height:46px;padding:0 4px;border:1.5px solid var(--line);border-radius:10px;
+  background:var(--bg);color:var(--ink);cursor:pointer;
+  font:700 16px/1 'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .15s ease,border-color .15s ease}
+.chip:hover{border-color:var(--primary)}
+.chip:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.chip.on{background:var(--primary);border-color:var(--primary);color:#fff}
+
+/* Operator tiles — Devanagari needs ~80px, so 92px minimum keeps names unclipped. */
+.ops{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px}
+.opt{min-height:48px;padding:0 6px;border:1.5px solid var(--line);border-radius:10px;
+  background:color-mix(in srgb,var(--muted) 8%,transparent);color:var(--ink);cursor:pointer;
+  font:600 15px/1.2 inherit;display:flex;align-items:center;justify-content:center;
+  text-align:center;overflow:hidden;transition:background .15s ease,border-color .15s ease}
+.opt:hover{border-color:var(--primary)}
+.opt:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.opt.on{background:var(--primary);border-color:var(--primary);color:#fff}
 .who{margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
 .tally{margin-top:14px;border:1px solid var(--line);border-radius:11px;overflow:hidden}
 .trow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 13px;
   background:var(--ok-soft)}
-.tk{font:600 10.5px/1.3 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tk{font:600 12px/1.3 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .tk .hi{display:block;font-size:11px;letter-spacing:0;text-transform:none;font-weight:400;opacity:.9}
 .tv{font:700 22px/1 'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ok)}
 .tu{font-size:12px;font-weight:600;opacity:.6;margin-left:3px}
 .sub{padding:9px 13px;background:color-mix(in srgb,var(--muted) 7%,transparent)}
-.subh{font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;
+.subh{font:600 12px/1.2 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;
   color:var(--muted);margin-bottom:7px}
-.sl{display:flex;justify-content:space-between;font-size:13px;padding:2.5px 0}
+.sl{display:flex;justify-content:space-between;font-size:14.5px;padding:4px 0}
 .sl b{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
 button.cta{width:100%;margin-top:14px;min-height:var(--tap);border:0;border-radius:11px;
   background:var(--primary);color:#fff;font:700 16px/1 inherit;cursor:pointer;
@@ -136,15 +238,39 @@ button .hi{font-weight:500;opacity:.9}
     <span id="rSavedTxt"></span>
   </div>
   <div class="hd">
-    <div><div class="hdt">Production <span class="hi">/ उत्पादन</span></div>
+    <div><div class="hdt"><span class="en">Production</span><span class="hi">उत्पादन</span></div>
       <div class="hds" id="clock">&nbsp;</div></div>
+    <!-- Opens in a new tab: the page is framed by the GitHub Pages wrapper, so navigating
+         in place would replace the counter inside the iframe with no way back. -->
+    <div class="lang" id="lang" role="group" aria-label="Language">
+      <button type="button" class="lb" data-lang="hi">हि</button>
+      <button type="button" class="lb" data-lang="en">EN</button>
+    </div>
+    <a class="ib" id="guide" href="#" target="_blank" rel="noopener"
+       aria-label="Help and QR sheet" title="Help / मदद">
+      <svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+        stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="10" cy="10" r="7.5"/>
+        <path d="M7.9 7.7a2.1 2.1 0 113.2 1.8c-.6.4-1.1.8-1.1 1.6"/>
+        <path d="M10 14.2v.01"/></svg>
+      <b>Help</b>
+    </a>
   </div>
-  <div id="mlist" class="tiles"></div>
+  <!-- Column headers stated ONCE. Units live here, not repeated on every row. -->
+  <div class="mhead">
+    <span class="hm">मशीन</span>
+    <span class="hp">प्रोडक्ट</span>
+    <span class="hn2">बना</span>
+    <span class="hn2">खराब</span>
+    <span class="hn2">रनर</span>
+  </div>
+  <div id="mlist" class="rows"></div>
+  <div class="mfoot" id="mfoot"></div>
   <div class="body" style="padding:12px 14px 14px">
     <button class="cta" id="toEntry">
       <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor"
         stroke-width="2.3" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg>
-      Enter reading <span class="hi">/ रीडिंग भरें</span>
+      <span class="en">Enter reading</span><span class="hi">रीडिंग भरें</span>
     </button>
   </div>
 </div>
@@ -163,18 +289,22 @@ button .hi{font-weight:500;opacity:.9}
           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 8.5L10 3l7 5.5V16a1 1 0 01-1 1h-3v-5H7v5H4a1 1 0 01-1-1z"/></svg>
       </button>
-      <button class="ib" id="prevM" aria-label="Previous machine" title="Previous machine">
-        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor"
-          stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg>
-      </button>
     </div>
-    <div style="text-align:center;flex:1"><div class="hdt" id="eMachine">Machine</div>
+    <div style="text-align:center;flex:1"><div class="hdt" id="eMachine">—</div>
       <div class="hds" id="clock2">&nbsp;</div></div>
     <div class="nav">
-      <button class="ib" id="nextM" aria-label="Next machine" title="Next machine">
-        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor"
-          stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
-      </button>
+      <div class="lang" id="lang2" role="group" aria-label="Language">
+        <button type="button" class="lb" data-lang="hi">हि</button>
+        <button type="button" class="lb" data-lang="en">EN</button>
+      </div>
+      <a class="ib" id="guide2" href="#" target="_blank" rel="noopener"
+         aria-label="Help and QR sheet" title="Help / मदद">
+        <svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="10" cy="10" r="7.5"/>
+          <path d="M7.9 7.7a2.1 2.1 0 113.2 1.8c-.6.4-1.1.8-1.1 1.6"/>
+          <path d="M10 14.2v.01"/></svg>
+      </a>
     </div>
   </div>
   <div class="body">
@@ -183,7 +313,7 @@ button .hi{font-weight:500;opacity:.9}
       <!-- Locked view: the running product is a fact, not a field. Changing it is a
            changeover, so it takes a deliberate second action. -->
       <div class="lock" id="codeLock">
-        <span class="lockv" id="codeText">—</span>
+        <span class="lockv"><span id="codeText">—</span><b id="codeSub"></b></span>
         <button class="ib lockb" id="codeEdit" aria-label="Change product" title="Change product / प्रोडक्ट बदलें">
           <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor"
             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -194,6 +324,7 @@ button .hi{font-weight:500;opacity:.9}
       <select id="code" class="hide"></select>
       <p class="hint hide" id="codeWarn">Changing the product starts a new run — totals reset.
         <span class="hi">नया रन शुरू होगा, कुल शून्य।</span></p>
+      <p class="schhint hide" id="schHint"></p>
     </div>
     <div class="f">
       <label><span class="en">Counter</span><span class="hn hi">काउंटर</span></label>
@@ -201,36 +332,63 @@ button .hi{font-weight:500;opacity:.9}
       <p class="hint" id="lastHint"></p>
       <div class="flag hide" id="flag"></div>
     </div>
-    <div class="pair">
-      <div class="f">
-        <label><span class="en">Reject</span><span class="hn hi">नग</span></label>
-        <input id="rej" class="sm" type="text" inputmode="numeric" autocomplete="off" placeholder="0">
-      </div>
-      <div class="f">
-        <label><span class="en">Runner</span><span class="hn hi">कि.ग्रा.</span></label>
-        <input id="run" class="sm" type="text" inputmode="decimal" autocomplete="off" placeholder="0">
-      </div>
+    <!-- Quick-pick chips instead of typed numbers: on a shop floor, tapping a preset is
+         faster and far less error-prone than a keyboard. The last chip opens a real input
+         for values the presets do not cover. -->
+    <div class="f">
+      <label><span class="en">Reject</span><span class="hn hi">खराब · नग</span></label>
+      <div class="chips" id="rejChips"></div>
+      <input id="rej" class="sm hide" type="text" inputmode="numeric" autocomplete="off" placeholder="0">
+    </div>
+    <div class="f">
+      <label><span class="en">Runner</span><span class="hn hi">रनर · कि.ग्रा.</span></label>
+      <div class="chips" id="runChips"></div>
+      <input id="run" class="sm hide" type="text" inputmode="decimal" autocomplete="off" placeholder="0">
     </div>
 
     <div class="tally">
       <div class="trow">
-        <span class="tk">Production<span class="hi">इस बार उत्पादन</span></span>
+        <span class="tk"><span class="en">Production</span><span class="hi">इस बार उत्पादन</span></span>
         <span class="tv"><span id="prod">–</span><span class="tu">pcs</span></span>
       </div>
       <div class="sub">
         <div class="subh">Since product change / कुल</div>
-        <div class="sl"><span>Production</span><b id="tProd">0 pcs</b></div>
+        <div class="sl"><span>Gross</span><b id="tGross">0 pcs</b></div>
         <div class="sl"><span>Reject</span><b id="tRej">0 pcs</b></div>
+        <div class="sl"><span>Net production</span><b id="tProd">0 pcs</b></div>
         <div class="sl"><span>Runner</span><b id="tRun">0 kg</b></div>
+        <div class="sl"><span>Average rate</span><b id="tRate">—</b></div>
       </div>
+    </div>
+
+    <div class="rdgs hide" id="rdgs">
+      <div class="subh" style="margin:0 0 7px 1px">This run / इस रन</div>
+      <table class="rtab"><tbody id="rtbody"></tbody></table>
     </div>
 
     <div class="who">
       <label><span class="en">Entered by</span><span class="hn hi">किसने भरा</span></label>
-      <select id="op"></select>
+      <!-- Tiles, not a dropdown: a name is recognised by position and shape without
+           opening a list or reading it top to bottom. -->
+      <div class="ops" id="opTiles"></div>
+      <select id="op" class="hide"></select>
     </div>
 
-    <button class="cta" id="save" disabled>Save <span class="hi">/ सेव करें</span></button>
+    <button class="cta" id="save" disabled><span class="en">Save</span><span class="hi">सेव करें</span></button>
+  </div>
+  <!-- Machine stepper lives at the BOTTOM, next to the thumb and beside Save — the two
+       actions an operator repeats on a round. Each names the machine it goes to. -->
+  <div class="step">
+    <button class="sb" id="prevM" aria-label="Previous machine">
+      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+        stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg>
+      <b id="prevLbl">—</b>
+    </button>
+    <button class="sb" id="nextM" aria-label="Next machine">
+      <b id="nextLbl">—</b>
+      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+        stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+    </button>
   </div>
 </div>
 
@@ -241,6 +399,14 @@ button .hi{font-weight:500;opacity:.9}
 // scriptlet tags in a comment here; Apps Script parses them wherever they appear.)
 // Number() also guards a non-numeric param.
 var DEEP_MACHINE = Number(<?!= machine ?>) || 0;
+
+// Absolute /exec URL, set server-side. The page is framed by the GitHub Pages wrapper, so a
+// relative href would resolve against github.io and 404.
+var GUIDE_URL = '<?!= guideUrl ?>';
+['guide','guide2'].forEach(function(id){
+  var a = document.getElementById(id);
+  if (a) a.href = GUIDE_URL;
+});
 var overview = null;   // read mode data
 var state = null;      // entry mode data for the selected machine
 var pendingToast = ''; // confirmation to show once read mode re-renders
@@ -263,6 +429,37 @@ function stamp(){
 }
 function tick(){ var s = stamp(); $('clock').textContent = s; $('clock2').textContent = s; }
 
+// Machine numbers in Devanagari when the page is in Hindi. Applied ONLY to machine
+// identifiers — counter readings stay in Latin digits so they match what is printed on
+// the machine's own display, which is what the operator is copying from.
+var DEV = ['०','१','२','३','४','५','६','७','८','९'];
+function devNum(n){
+  return String(n).replace(/\d/g, function(d){ return DEV[+d]; });
+}
+function isHi(){ return document.documentElement.getAttribute('data-lang') !== 'en'; }
+function machineNo(n){ return isHi() ? devNum(n) : String(n); }
+function machineLabel(n){ return isHi() ? 'मशीन ' + devNum(n) : 'Machine ' + n; }
+
+var LANG_KEY = 'ypp_lang';
+function setLang(l){
+  document.documentElement.setAttribute('data-lang', l);
+  [].forEach.call(document.querySelectorAll('.lb'), function(b){
+    b.classList.toggle('on', b.getAttribute('data-lang') === l);
+  });
+  try { localStorage.setItem(LANG_KEY, l); } catch(e){}
+  // Machine numerals are baked into text nodes, so re-render what is visible.
+  if (overview && !$('readApp').classList.contains('hide')) renderOverview();
+  if (state && !$('entryApp').classList.contains('hide')) {
+    $('eMachine').textContent = machineLabel(state.machine);
+    updateStepLabels();
+  }
+}
+// Hindi by default — the floor reads Hindi; English is the exception, not the baseline.
+setLang((function(){ try { return localStorage.getItem(LANG_KEY) || 'hi'; } catch(e){ return 'hi'; } })());
+[].forEach.call(document.querySelectorAll('.lb'), function(b){
+  b.addEventListener('click', function(){ setLang(b.getAttribute('data-lang')); });
+});
+
 // localStorage is unavailable in some sandboxed webview contexts; a failure to
 // remember the last operator must never break the form.
 function remember(name){ try{ localStorage.setItem(LAST_OP_KEY,name); }catch(e){} }
@@ -282,26 +479,48 @@ function renderOverview(){
   var list = $('mlist');
   list.innerHTML = '';
   if (!overview.machines.length){
-    list.innerHTML = '<div class="empty" style="grid-column:1/-1">No machines yet.'
+    list.innerHTML = '<div class="empty">No machines yet.'
       + '<br><span class="hi">कोई मशीन नहीं।</span></div>';
   }
-  overview.machines.forEach(function(m){
+  // Running machines first — they are what an operator is looking for. Idle ones keep
+  // their numeric order below.
+  var listed = overview.machines.slice().sort(function(a,b){
+    var ar = a.code ? 0 : 1, br = b.code ? 0 : 1;
+    return ar - br || Number(a.machine) - Number(b.machine);
+  });
+  listed.forEach(function(m){
     var b = document.createElement('button');
     b.className = 'm' + (m.code ? '' : ' idle');
     b.setAttribute('aria-label','Machine '+m.machine+' — enter reading');
+    // Second line carries only reference detail: code, who logged it, when — or, for an
+    // idle machine, what Dispatch says it should be running.
+    var sub;
+    if (m.code){
+      sub = [m.shape, m.code, m.lastOperator, m.lastAt].filter(Boolean).join(' · ');
+    } else if (m.scheduled){
+      sub = 'प्लान ' + m.scheduled.code
+          + (m.scheduled.balance ? ' · ' + nfmt(m.scheduled.balance) : '');
+    } else {
+      sub = '';
+    }
+    var warn = m.code && m.scheduled && m.scheduled.differs;
     b.innerHTML =
-      '<span class="mhd">'+
-        '<span class="mn">'+m.machine+'</span>'+
-        '<span class="mc">'+(m.code || '— idle —')+'</span>'+
-      '</span>'+
-      '<span class="ml">'+(m.code ? (m.label || '&nbsp;') : '<span class="hi">खाली</span>')+'</span>'+
-      '<span class="mp">'+nfmt(m.totals.production)+'<span class="mpu">pcs</span></span>'+
-      '<span class="mx">rej '+nfmt(m.totals.rejection)+' · '+nfmt(m.totals.runner)+' kg</span>'+
-      (m.lastAt ? '<span class="mx">'+m.lastAt
-        +(m.lastOperator ? ' · '+m.lastOperator : '')+'</span>' : '');
+      '<span class="mn" style="background:'+(m.color||'#6b7280')+'">'+machineNo(m.machine)+'</span>'+
+      '<span class="mc">'+(m.code ? (m.label || m.code) : 'खाली')+'</span>'+
+      '<span class="mp">'+nfmt(m.totals.production)+'</span>'+
+      '<span class="mrj">'+(m.code ? nfmt(m.totals.rejection) : '—')+'</span>'+
+      '<span class="mrn">'+(m.code ? nfmt(m.totals.runner) : '—')+'</span>'+
+      '<span class="msub'+(warn?' warn':'')+'">'+(warn?'⚠ ':'')+sub+'</span>';
     b.addEventListener('click', function(){ openEntry(m.machine); });
     list.appendChild(b);
   });
+
+  // Factory totals — nothing else on this screen answers "how much did we make today".
+  var sum = overview.machines.reduce(function(a,m){
+    a.p += m.totals.production; a.r += m.totals.rejection; a.k += m.totals.runner; return a;
+  }, {p:0, r:0, k:0});
+  $('mfoot').innerHTML = '<span class="fl">कुल</span>'
+    + '<b>'+nfmt(sum.p)+'</b><b>'+nfmt(sum.r)+'</b><b>'+nfmt(sum.k)+'</b>';
 
   if (pendingToast){
     $('rSavedTxt').innerHTML = pendingToast + ' <span class="hi">/ सेव हो गया</span>';
@@ -321,7 +540,19 @@ function openEntry(machine){
   $('readApp').classList.add('hide');
   $('entryApp').classList.remove('hide');
   $('saved').classList.add('hide');
-  $('eMachine').textContent = 'Machine ' + machine;
+  $('eMachine').textContent = machineLabel(machine);
+  // Show the totals the overview already carries so the form is readable immediately;
+  // loadMachine then replaces them with the authoritative state plus the product list.
+  var pre = (overview.machines || []).filter(function(m){
+    return Number(m.machine) === Number(machine); })[0];
+  if (pre){
+    $('tGross').textContent = nfmt(pre.totals.gross || 0) + ' pcs';
+    $('tRej').textContent   = nfmt(pre.totals.rejection) + ' pcs';
+    $('tProd').textContent  = nfmt(pre.totals.production) + ' pcs';
+    $('tRun').textContent   = nfmt(pre.totals.runner) + ' kg';
+  }
+  buildChips('rejChips', 'rej', [0, 5, 10, 25]);
+  buildChips('runChips', 'run', [0, 5, 10, 20]);
   // No machine picker on this screen: the machine was chosen by tapping its tile, and
   // the header's home / prev / next icons are the way to move between machines.
   loadMachine(machine);
@@ -343,8 +574,18 @@ function loadMachine(machine){
     .getCounterState(m);
 }
 
+function updateStepLabels(){
+  if (!overview || !state) return;
+  var list = overview.machines.map(function(m){ return Number(m.machine); });
+  var i = list.indexOf(Number(state.machine));
+  if (i === -1) return;
+  $('prevLbl').textContent = machineLabel(list[(i - 1 + list.length) % list.length]);
+  $('nextLbl').textContent = machineLabel(list[(i + 1) % list.length]);
+}
+
 function renderEntry(){
-  $('eMachine').textContent = 'Machine ' + state.machine;
+  $('eMachine').textContent = machineLabel(state.machine);
+  updateStepLabels();
 
   var sel = $('code');
   sel.innerHTML = '';
@@ -356,40 +597,144 @@ function renderEntry(){
   state.products.forEach(function(p){
     var o = document.createElement('option');
     o.value = p.code;
-    o.textContent = p.code + (p.label ? ' · ' + p.label : '');
+    // Description first — an operator scans this list by what the bottle looks like.
+    o.textContent = (p.label ? p.label + ' · ' : '') + p.code;
     if (p.code === state.code) o.selected = true;
     sel.appendChild(o);
   });
+
+  // Prefill ONLY when there is nothing to lock — a machine's first ever reading, where the
+  // alternative is scrolling 65 codes to find what the schedule already knows. Where history
+  // exists the schedule stays a suggestion, so the log keeps recording what actually ran
+  // rather than echoing the plan. No badge on the selected value: a prefill should look like
+  // a choice the operator happened to agree with, not a confirmed fact.
+  if (!state.code && state.scheduled && state.scheduled.code){
+    sel.value = state.scheduled.code;
+  }
+
+  var sh = $('schHint');
+  if (state.scheduled){
+    var s = state.scheduled, bits = [];
+    if (s.balance) bits.push(nfmt(s.balance) + ' pcs');
+    if (s.days) bits.push(s.days + ' day' + (s.days > 1 ? 's' : ''));
+    if (s.startedOn) bits.push('from ' + s.startedOn);
+    sh.innerHTML = (s.differs ? '&#9888; ' : '') + 'Scheduled today: <b>' + s.code + '</b>'
+      + (bits.length ? ' · ' + bits.join(' · ') : '')
+      + ' <span class="hi">/ आज का प्लान</span>';
+    sh.classList.toggle('warn', !!s.differs);
+    sh.classList.remove('hide');
+  } else {
+    sh.classList.add('hide');
+  }
 
   // A machine already running a product shows it locked; a machine with no history
   // has nothing to lock, so the picker is open from the start.
   setCodeLocked(!!state.code);
 
-  var ops = state.operators || [];
+  // Operators arrive as {name, hi}; the tile shows Hindi, the log stores name.
+  var ops = (state.operators || []).map(function(o){
+    return typeof o === 'string' ? { name: o, hi: o } : o;
+  });
   var osel = $('op');
   osel.innerHTML = '';
+  var host = $('opTiles');
+  host.innerHTML = '';
   var prefer = recallOp() || state.lastOperator || '';
+
   var oe = document.createElement('option');
-  oe.value = ''; oe.textContent = '— Select / चुनें —';
-  osel.appendChild(oe);
-  ops.forEach(function(n){
-    var o = document.createElement('option');
-    o.value = n; o.textContent = n;
-    if (n === prefer) o.selected = true;
-    osel.appendChild(o);
+  oe.value = ''; osel.appendChild(oe);
+  ops.forEach(function(o){
+    var opt = document.createElement('option');
+    opt.value = o.name; osel.appendChild(opt);
+
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'opt';
+    b.setAttribute('data-op', o.name);
+    b.setAttribute('aria-label', o.name);
+    b.textContent = o.hi || o.name;
+    b.addEventListener('click', function(){ selectOperator(o.name); });
+    host.appendChild(b);
   });
   if (!ops.length){
-    oe.textContent = '— Operators sheet is empty —';
+    host.innerHTML = '<div class="hint" style="grid-column:1/-1">'
+      + 'Operators sheet is empty — add names there first.</div>';
   }
+  // Preselect only if that person is still on the active list.
+  if (prefer && ops.some(function(o){ return o.name === prefer; })) selectOperator(prefer);
+  else osel.value = '';
 
   $('lastHint').textContent = state.lastCounter === null
     ? 'First reading — production counts from here'
     : 'last ' + nfmt(state.lastCounter) + ' · ' + state.lastAt
       + (state.lastOperator ? ' · ' + state.lastOperator : '');
 
-  $('tProd').textContent = nfmt(state.totals.production) + ' pcs';
-  $('tRej').textContent  = nfmt(state.totals.rejection) + ' pcs';
-  $('tRun').textContent  = nfmt(state.totals.runner) + ' kg';
+  var T = state.totals;
+  $('tGross').textContent = nfmt(T.gross || 0) + ' pcs';
+  $('tRej').textContent   = nfmt(T.rejection) + ' pcs';
+  $('tProd').textContent  = nfmt(T.production) + ' pcs';
+  $('tRun').textContent   = nfmt(T.runner) + ' kg';
+  $('tRate').textContent  = T.rate ? nfmt(Math.round(T.rate)) + '/hr' : '—';
+
+  var rd = state.readings || [];
+  var tb = $('rtbody');
+  tb.innerHTML = '';
+  rd.forEach(function(r){
+    var tr = document.createElement('tr');
+    if (r.first) tr.className = 'firstr';
+    var rateOk = r.rate !== null && r.rate !== undefined && isFinite(r.rate);
+    tr.innerHTML =
+      '<td class="rt">' + (r.at || '').replace(/^\d+ \w+ /,'') + '</td>' +
+      '<td class="rn">' + nfmt(r.counter) + '</td>' +
+      '<td class="rn">' + (r.first ? 'start ' : '+') + nfmt(r.gross) + '</td>' +
+      '<td class="rj">' + (r.rejection ? '-' + nfmt(r.rejection) : '') + '</td>' +
+      '<td class="rr' + (rateOk ? '' : ' none') + '">' +
+        (rateOk ? nfmt(Math.round(r.rate)) + '/hr' : '—') + '</td>';
+    tb.appendChild(tr);
+  });
+  $('rdgs').classList.toggle('hide', !rd.length);
+
+  recalc();
+}
+
+function buildChips(hostId, inputId, presets){
+  var host = $(hostId), input = $(inputId);
+  host.innerHTML = '';
+  presets.forEach(function(v){
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.textContent = v;
+    b.setAttribute('aria-label', v);
+    b.addEventListener('click', function(){
+      input.value = String(v);
+      input.classList.add('hide');
+      [].forEach.call(host.children, function(c){ c.classList.remove('on'); });
+      b.classList.add('on');
+      recalc();
+    });
+    host.appendChild(b);
+  });
+  // "+" reveals a real field for anything the presets miss (12.5 kg, 37 pieces).
+  var more = document.createElement('button');
+  more.type = 'button'; more.className = 'chip'; more.textContent = '+';
+  more.setAttribute('aria-label', 'Other amount');
+  more.addEventListener('click', function(){
+    [].forEach.call(host.children, function(c){ c.classList.remove('on'); });
+    more.classList.add('on');
+    input.classList.remove('hide');
+    input.value = '';
+    input.focus();
+    recalc();
+  });
+  host.appendChild(more);
+  // Default to the first preset (0) so a reading with no scrap needs no taps at all.
+  if (host.firstChild) host.firstChild.classList.add('on');
+  input.value = String(presets[0]);
+}
+
+function selectOperator(name){
+  $('op').value = name;
+  [].forEach.call($('opTiles').children, function(c){
+    c.classList.toggle('on', c.getAttribute('data-op') === name);
+  });
   recalc();
 }
 
@@ -400,7 +745,16 @@ function setCodeLocked(locked){
   $('codeWarn').classList.toggle('hide', locked);
   if (locked){
     var opt = sel.options[sel.selectedIndex];
-    $('codeText').textContent = opt ? opt.textContent : (state && state.code) || '—';
+    // Split the option text back into description and code so the code can be de-emphasised.
+    var full = opt ? opt.textContent : (state && state.code) || '—';
+    var cut = full.lastIndexOf(' · ');
+    if (cut > 0) {
+      $('codeText').textContent = full.slice(0, cut);
+      $('codeSub').textContent = full.slice(cut + 3);
+    } else {
+      $('codeText').textContent = full;
+      $('codeSub').textContent = '';
+    }
   }
 }
 
@@ -412,10 +766,12 @@ function recalc(){
   var base = (changed || state.lastCounter === null) ? null : state.lastCounter;
   var bad = false, prod = '–';
 
+  var rejNow = num($('rej').value) || 0;
   if (c !== null && base !== null){
-    if (c < base) bad = true; else prod = nfmt(c - base);
+    if (c < base) bad = true; else prod = nfmt(c - base - rejNow);
   } else if (c !== null){
-    prod = '0';
+    // First reading of a run — the counter started at zero, so it is all production.
+    prod = nfmt(c - rejNow);
   }
 
   $('prod').textContent = prod;
@@ -446,15 +802,24 @@ function save(){
       remember(operator);
       state = res;
       $('counter').value = ''; $('rej').value = ''; $('run').value = '';
-      $('save').innerHTML = 'Save <span class="hi">/ सेव करें</span>';
+      $('save').innerHTML = '<span class="en">Save</span><span class="hi">सेव करें</span>';
       // Back to the list after saving: the operator's next action is almost always
       // another machine, and the refreshed list is itself the confirmation.
       pendingToast = 'Saved ' + nfmt(res.lastProduction) + ' pcs · Machine '
         + res.machine + ' · ' + operator;
-      toRead();
+      // The save already returned a fresh overview, so render it directly instead of
+      // paying another round trip to fetch what we were just handed.
+      if (res.overview){
+        overview = res.overview;
+        $('entryApp').classList.add('hide');
+        $('readApp').classList.remove('hide');
+        renderOverview();
+      } else {
+        toRead();
+      }
     })
     .withFailureHandler(function(err){
-      $('save').innerHTML = 'Save <span class="hi">/ सेव करें</span>';
+      $('save').innerHTML = '<span class="en">Save</span><span class="hi">सेव करें</span>';
       $('save').disabled = false;
       $('flag').textContent = err && err.message ? err.message : String(err);
       $('flag').classList.remove('hide');
@@ -474,6 +839,7 @@ function toRead(){
 }
 
 $('counter').addEventListener('input', recalc);
+$('rej').addEventListener('input', recalc);   // net preview depends on rejection
 $('codeEdit').addEventListener('click', function(){
   setCodeLocked(false);
   $('code').focus();
