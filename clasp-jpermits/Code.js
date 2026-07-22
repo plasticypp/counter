@@ -1131,6 +1131,10 @@ function doGet(e) {
     tplC.machine = Number(e.parameter.machine) || 0;
     return tplC.evaluate()
       .setTitle('Counter Entry')
+      // Required for the GitHub Pages wrapper to embed this page. Same approach as the
+      // existing Pack Masters DWM/QMS apps. Trade-off: it disables Google's built-in
+      // clickjacking protection, so this page can be framed by ANY site, not just ours.
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1');
   } else if (action === 'counterQr') {
     // Printable QR + bilingual operator guide. ScriptApp.getService().getUrl() returns
@@ -1140,7 +1144,8 @@ function doGet(e) {
     tplQ.baseUrl = ScriptApp.getService().getUrl();
     tplQ.machinesJson = JSON.stringify(
       getCounterOverview().machines.map(function (m) { return m.machine; }));
-    return tplQ.evaluate().setTitle('Counter Entry — QR & Guide');
+    return tplQ.evaluate().setTitle('Counter Entry — QR & Guide')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   } else if (action === 'dashboard') {
     return HtmlService.createHtmlOutputFromFile('Dashboard')
       .setTitle('Dispatch Dashboard')
