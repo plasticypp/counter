@@ -43,16 +43,19 @@ function callAction_(action, extraBody) {
 // deliberately absent: the PO does not specify them, and the scheduler skips any row without a
 // Machine, so these sit inert until the planner assigns them by hand.
 var PENDING_PO_IMPORT_ = {
-  poNumber: 'AMB/26-27/PAC/00415',
-  poDate: '2026-07-22',
+  poNumber: 'AMB/26-27/PAC/00435',
+  poDate: '2026-07-28',
   lines: [
-    { code: 'PMCON0148', qty: 700,   rate: 46.10 },
-    { code: 'PMCON0158', qty: 1130,  rate: 57.63 },
-    { code: 'PMCON0166', qty: 6000,  rate: 14.79 },
-    { code: 'PMCON0182', qty: 6423,  rate: 15.65 },
-    { code: 'PMCON0183', qty: 5600,  rate: 14.91 },
-    { code: 'PMCON0232', qty: 126,   rate: 40.34 },
-    { code: 'PMCON0024', qty: 1836,  rate: 56.88 },
+    { code: 'PMCON0147', qty: 7000,  rate: 14.85 },
+    { code: 'PMCON0192', qty: 13000, rate: 14.40 },
+    { code: 'PMCON0148', qty: 150,   rate: 46.10 },
+    { code: 'PMCON0159', qty: 150,   rate: 40.34 },
+    { code: 'PMCON0025', qty: 150,   rate: 39.81 },
+    { code: 'PMCON0020', qty: 3000,  rate: 14.40 },
+    { code: 'PMCON0024', qty: 800,   rate: 56.88 },
+    { code: 'PMCON0021', qty: 250,   rate: 11.05 },
+    { code: 'PMCON0158', qty: 500,   rate: 57.63 },
+    { code: 'PMCON0068', qty: 1550,  rate: 56.88 },
   ],
 };
 
@@ -644,7 +647,11 @@ function onEdit(e) {
   // Order matters: the constant-column checks are free, the Start Date lookup costs two range
   // reads. Only pay it for edits that aren't already known triggers, so typing in an unrelated
   // column (PO Number, Code, ...) still bails out without touching the sheet.
-  var isKnownColOE = (col === 1 || col === 2 || col === 15);
+  // Machine (A) and Priority (B) are genuinely fixed — the sort keys the board is built on.
+  // Balance is NOT: the hardcoded 15 (=O) meant this fired on MB and ignored Balance once
+  // MB Ratio was inserted, so re-sorts silently stopped happening on the column that matters.
+  var balanceColOE = dispatchColumnByName_(sheet, 'Balance');
+  var isKnownColOE = (col === 1 || col === 2 || (balanceColOE !== -1 && col === balanceColOE));
   var isStartDateEditOE = !isKnownColOE && col === dispatchStartDateColumn_(sheet);
   if (!isKnownColOE && !isStartDateEditOE) return;
 
@@ -689,12 +696,20 @@ function dispatchCols_(sheet) {
   };
 }
 
+function dispatchColumnByName_(dispatch, headerName) {
+  // 1-indexed column carrying `headerName`, or -1 if absent. Every caller that used to hardcode
+  // an index belongs here: Dispatch's column order has changed repeatedly (MB Ratio inserted,
+  // Month moved to the end), and a stale constant reads a neighbouring field without erroring —
+  // the failure is silent and looks like bad data rather than a bug.
+  var labelRowDCN = findInvoiceRow_(dispatch) + 1;
+  var headersDCN = dispatch.getRange(labelRowDCN, 1, 1, dispatch.getLastColumn()).getValues()[0];
+  var idxDCN = headersDCN.indexOf(headerName);
+  return idxDCN === -1 ? -1 : idxDCN + 1;
+}
+
 function dispatchStartDateColumn_(dispatch) {
   // 1-indexed column of 'Start Date', or -1 before the schedule block has been installed.
-  var labelRowDSC = findInvoiceRow_(dispatch) + 1;
-  var headersDSC = dispatch.getRange(labelRowDSC, 1, 1, dispatch.getLastColumn()).getValues()[0];
-  var idxDSC = headersDSC.indexOf('Start Date');
-  return idxDSC === -1 ? -1 : idxDSC + 1;
+  return dispatchColumnByName_(dispatch, 'Start Date');
 }
 
 function applyStartDateValidation_(dispatch, startDateCol, dataStartRow, lastRow) {
@@ -757,16 +772,27 @@ function installDispatchScheduleColumns_(dispatch) {
   if ([machineColISC, priorityColISC, codeColISC, balanceColISC, monthColISC].indexOf(-1) !== -1) {
     throw new Error('Dispatch is missing one of: Machine, Priority, Code, Balance, Month.');
   }
-  var lastCoreColISC = monthColISC + 1; // 1-indexed column right after Month
-
-  // One-time insert tracked via a script property (not a cell — a cell in this range would get
-  // overwritten by the header/data writes below, defeating the marker on every subsequent call).
-  var scheduleCol = lastCoreColISC + 1;
+  // Anchor the schedule block on its OWN header, never on Month's position. Deriving it as
+  // `Month + 2` assumes Month is the last core column; the planner has since moved Month to the
+  // END, so that arithmetic pointed at the Gantt day grid and every rebuild stamped the schedule
+  // headers and dates over the bars. The block currently lives BEFORE Month (Output/Day..Days),
+  // which positional math cannot express at all.
   var props = PropertiesService.getScriptProperties();
-  if (props.getProperty('DISPATCH_SCHEDULE_BLOCK_INSERTED') !== 'true') {
+  var outputHeaderColISC = dispatchHeadersISC.indexOf('Output / Day (pcs)');
+  var scheduleCol;
+  if (outputHeaderColISC !== -1) {
+    scheduleCol = outputHeaderColISC + 1; // 1-indexed: reuse the block already on the sheet
+  } else {
+    // Genuinely absent: create it after the last core column. The old script-property marker is
+    // NOT consulted — a stale 'true' left the block uncreated, and a stale 'false' inserted 35
+    // columns into a sheet that already had them. The header's presence is the only honest test.
+    scheduleCol = monthColISC + 2;
     dispatch.insertColumnsBefore(scheduleCol, 35); // 4 data cols + 1 spacer + 30 bar cols
     props.setProperty('DISPATCH_SCHEDULE_BLOCK_INSERTED', 'true');
   }
+  // Core columns are everything left of the schedule block, whatever order the planner has put
+  // them in. Month may sit inside or after that range; either way it is read by name below.
+  var lastCoreColISC = scheduleCol - 1;
 
   var ss = dispatch.getParent();
   var mastersISC = ss.getSheetByName('Masters').getDataRange().getValues();
