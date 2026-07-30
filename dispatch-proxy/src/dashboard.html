@@ -255,9 +255,16 @@
   }
 
   /* ---------------- grand total strip ---------------- */
+  /* Sticky to the bottom of the viewport rather than floating in the flow. Once .table-scroll
+     became a height-bounded scroll box, the grand strip stopped landing at the foot of the
+     page and started appearing mid-screen — under a table that was still scrolling inside
+     itself, above a band of empty space. Pinning it to the bottom edge puts the totals back
+     where they read as a footer at every viewport height. */
   .grand {
+    position: sticky; bottom: 0; z-index: 8;
     display: flex; gap: 0; flex-wrap: wrap; margin-top: 2px;
     background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+    box-shadow: 0 -6px 14px -10px rgba(22,24,29,.28);
   }
   .grand div { padding: var(--sp-3) var(--sp-4); flex: 1 1 140px; border-right: 1px solid var(--line); }
   .grand div:last-child { border-right: none; }
@@ -409,7 +416,12 @@
     .filter-wrap { order: 1; margin-left: 0; max-width: none; width: 100%; }
     .filter-wrap input { padding: 11px 12px 11px 34px; font-size: var(--fs-base); }
     main { padding: var(--sp-2); }
-    .tcard { grid-template-columns: 1fr; }
+    /* The card views scroll the page itself rather than an inner box, so the strip already
+       lands at the true bottom — and pinning it here would spend scarce phone height on the
+       number no persona actually came for. */
+    .grand { position: static; box-shadow: none; }
+    .grand div { flex: 1 1 50%; padding: var(--sp-2) var(--sp-3); }
+    .grand b { font-size: var(--fs-lg); }
   }
 
   .empty { padding: 48px 20px; text-align: center; color: var(--dim); font-family: var(--sans); font-weight: 500; font-size: var(--fs-base); }
@@ -821,6 +833,9 @@ function render() {
   mainEl.innerHTML = html;
   mainEl.setAttribute('aria-busy', 'false');
 
+  // Order matters: the legend and grand strip only exist now, and the table's height budget
+  // is measured from them.
+  measureChrome();
   measureFrozenOffset();
   var jt = document.getElementById('jumpToday');
   if (jt) jt.addEventListener('click', scrollToToday);
@@ -847,12 +862,19 @@ function scrollToToday() {
   box.scrollLeft = Math.max(0, cell.offsetLeft - frozen - 80);
 }
 
-/* The header flex-wraps as the viewport narrows, so the table's max-height offset cannot be
-   a literal. Measure the real chrome height and let CSS read it. */
+/* The header flex-wraps as the viewport narrows and the grand strip is pinned to the bottom,
+   so the table's available height cannot be a literal. Measure both — plus the legend — or
+   the strip overlaps the table's last rows. */
 function measureChrome() {
-  var h = document.querySelector('header');
-  if (!h) return;
-  document.documentElement.style.setProperty('--chrome-h', (h.getBoundingClientRect().height + 42) + 'px');
+  var header = document.querySelector('header');
+  if (!header) return;
+  var legend = document.querySelector('.legend');
+  var grand = document.querySelector('.grand');
+  var used = header.getBoundingClientRect().height
+    + (legend ? legend.getBoundingClientRect().height : 0)
+    + (grand ? grand.getBoundingClientRect().height : 0)
+    + 34; // main padding + the table's own margin
+  document.documentElement.style.setProperty('--chrome-h', Math.round(used) + 'px');
 }
 
 document.querySelectorAll('.tab').forEach(function (btn) {
