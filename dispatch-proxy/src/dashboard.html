@@ -62,12 +62,19 @@
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { color-scheme: light; }
+  /* Full-height column so <main> always reaches the bottom of the window. `position: sticky`
+     pins an element to its CONTAINING BLOCK, not the viewport — with an auto-height <main>,
+     a short table left main ending partway down the page and the grand-total strip stuck to
+     that edge, floating mid-screen. Tall content hid the bug, which is why it appeared only
+     "at times". Making main fill the viewport makes its bottom the window's bottom. */
+  html, body { height: 100%; }
   body {
     background: var(--bg); color: var(--ink);
     font-family: var(--sans);
     font-size: var(--fs-base); line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    display: flex; flex-direction: column; min-height: 100%;
   }
 
   /* ---------------- header / controls ---------------- */
@@ -146,7 +153,13 @@
   .clock.is-stale .dot { background: var(--today); }
   .clock.is-stale { color: var(--today); font-weight: 700; }
 
-  main { padding: var(--sp-4); max-width: 100%; margin: 0 auto; }
+  /* flex:1 makes main absorb the leftover height so its bottom edge IS the viewport bottom;
+     margin-top:auto on the strip then parks it there whatever the content height. */
+  main {
+    padding: var(--sp-4); max-width: 100%; margin: 0 auto; width: 100%;
+    flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0;
+  }
+  main > .grand { margin-top: auto; }
 
   /* ---------------- legend ---------------- */
   /* Sticky: it maps colour to machine, and scrolling it away left hue as an unresolvable
@@ -161,17 +174,16 @@
   .legend .today-chip i { background: var(--today); border-radius: 50%; }
 
   /* ---------------- desktop: unified table ---------------- */
+  /* The date header is `position: sticky`, which resolves against the nearest scrolling
+     ancestor — and declaring overflow makes this box that ancestor rather than the viewport.
+     So the box has to own a bounded height or the header has nothing to stick within.
+     That height is now taken from the flex column (min-height:0 lets it shrink below its
+     content) instead of a measured `100vh - chrome` literal: the literal had to be re-measured
+     on every layout change, and each time it drifted it either clipped the table below the
+     fold or left the totals strip floating mid-page. */
   .table-scroll {
-    /* The date header is `position: sticky`, which resolves against the nearest scrolling
-       ancestor — and declaring overflow-x makes this box scrollable on BOTH axes, so that
-       ancestor is this container, not the viewport. Left auto-height it has no scrollable
-       extent of its own, so the header had nothing to stick within and simply left the screen
-       with the container. Bounding the height makes the container the thing that scrolls, so
-       the dates hold their position while rows move under them. */
-     The offset is a CSS variable rather than a literal because the header flex-wraps at
-     ~1050px and grows ~40px; JS measures the real header height and updates it, so the
-     table's bottom edge never lands below the fold. */
-    overflow: auto; max-height: calc(100vh - var(--chrome-h, 190px)); overscroll-behavior: contain;
+    flex: 1 1 auto; min-height: 0;
+    overflow: auto; overscroll-behavior: contain;
     border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
     margin-bottom: var(--sp-4);
   }
@@ -255,16 +267,13 @@
   }
 
   /* ---------------- grand total strip ---------------- */
-  /* Sticky to the bottom of the viewport rather than floating in the flow. Once .table-scroll
-     became a height-bounded scroll box, the grand strip stopped landing at the foot of the
-     page and started appearing mid-screen — under a table that was still scrolling inside
-     itself, above a band of empty space. Pinning it to the bottom edge puts the totals back
-     where they read as a footer at every viewport height. */
+  /* Sits at the foot of the flex column (main > .grand { margin-top: auto }), so it lands on
+     the window's bottom edge whether the board has three rows or three hundred. It is a
+     footer, not an overlay — no sticky positioning needed once main fills the viewport. */
   .grand {
-    position: sticky; bottom: 0; z-index: 8;
+    flex: 0 0 auto;
     display: flex; gap: 0; flex-wrap: wrap; margin-top: 2px;
     background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
-    box-shadow: 0 -6px 14px -10px rgba(22,24,29,.28);
   }
   .grand div { padding: var(--sp-3) var(--sp-4); flex: 1 1 140px; border-right: 1px solid var(--line); }
   .grand div:last-child { border-right: none; }
@@ -388,7 +397,9 @@
      date header, and this rule comes later in the cascade, so including it here silently
      reverted that to hidden and un-stuck the header. */
   .cards, .tablet-cards { border-radius: 8px; background: var(--panel); border: 1px solid var(--line); margin-bottom: var(--sp-4); overflow: hidden; }
-  .tablet-cards { overflow-x: hidden; overflow-y: auto; }
+  /* The card views grow with their content and let the PAGE scroll — unlike the desktop
+     table, they are not inner scroll boxes, so they must not be squeezed by the flex column. */
+  .cards, .tablet-cards { flex: 0 0 auto; }
 
   /* --- breakpoints: three distinct renderings, not one shrinking table --- */
   @media (max-width: 1000px) {
@@ -416,10 +427,8 @@
     .filter-wrap { order: 1; margin-left: 0; max-width: none; width: 100%; }
     .filter-wrap input { padding: 11px 12px 11px 34px; font-size: var(--fs-base); }
     main { padding: var(--sp-2); }
-    /* The card views scroll the page itself rather than an inner box, so the strip already
-       lands at the true bottom — and pinning it here would spend scarce phone height on the
-       number no persona actually came for. */
-    .grand { position: static; box-shadow: none; }
+    /* On a phone the totals are the figure no persona actually came for, so they get two
+       compact columns at the end of the scroll rather than a share of the first screen. */
     .grand div { flex: 1 1 50%; padding: var(--sp-2) var(--sp-3); }
     .grand b { font-size: var(--fs-lg); }
   }
@@ -833,9 +842,6 @@ function render() {
   mainEl.innerHTML = html;
   mainEl.setAttribute('aria-busy', 'false');
 
-  // Order matters: the legend and grand strip only exist now, and the table's height budget
-  // is measured from them.
-  measureChrome();
   measureFrozenOffset();
   var jt = document.getElementById('jumpToday');
   if (jt) jt.addEventListener('click', scrollToToday);
@@ -862,20 +868,6 @@ function scrollToToday() {
   box.scrollLeft = Math.max(0, cell.offsetLeft - frozen - 80);
 }
 
-/* The header flex-wraps as the viewport narrows and the grand strip is pinned to the bottom,
-   so the table's available height cannot be a literal. Measure both — plus the legend — or
-   the strip overlaps the table's last rows. */
-function measureChrome() {
-  var header = document.querySelector('header');
-  if (!header) return;
-  var legend = document.querySelector('.legend');
-  var grand = document.querySelector('.grand');
-  var used = header.getBoundingClientRect().height
-    + (legend ? legend.getBoundingClientRect().height : 0)
-    + (grand ? grand.getBoundingClientRect().height : 0)
-    + 34; // main padding + the table's own margin
-  document.documentElement.style.setProperty('--chrome-h', Math.round(used) + 'px');
-}
 
 document.querySelectorAll('.tab').forEach(function (btn) {
   btn.addEventListener('click', function () {
@@ -953,8 +945,7 @@ function load() {
     .catch(showLoadError);
 }
 
-measureChrome();
-window.addEventListener('resize', function () { measureChrome(); measureFrozenOffset(); });
+window.addEventListener('resize', measureFrozenOffset);
 
 load();
 // Refresh on a timer AND whenever the tab is looked at again: the wall-mounted tablet is
