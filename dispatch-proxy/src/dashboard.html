@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -29,18 +29,19 @@
     --line: #dde2ea;          /* hairlines on light */
     --ink: #16181d;           /* primary text, near-black */
     --dim: #5b6270;           /* secondary text */
-    --faint: #9298a6;         /* tertiary / disabled */
+    --faint: #666d7c;         /* tertiary — was #9298a6 (2.89:1, failed AA); now 4.59:1 worst ground */
     --primary: #1e40af;       /* structural blue — brand/active state */
-    --amber: #b5650f;         /* signal accent — "running" indicator, reserved */
-    --amber-dim: #f6e2c4;
-    --today: #d1374a;         /* today marker — distinct from amber */
+    --amber: #b5650f;         /* signal accent — data aging */
+    --ok: #157a4a;            /* data fresh */
+    --today: #d1374a;         /* today marker / data stale — distinct from amber */
 
-    /* Machine palette: 8 vivid hues at matched chroma/lightness so every
-       color reads with equal visual weight on a light ground — bright
-       enough to pop, none oversaturated to the point of vibrating.
-       Spaced 30°+ apart on the wheel for real distinction. */
-    --m1: #2f7de0; --m2: #16a367; --m3: #e07c1a; --m4: #9457e0;
-    --m5: #e0417a; --m6: #0ea5a0; --m7: #b89a1c; --mx: #808896;
+    /* Machine palette: 8 hues spaced 30°+ apart. Every one clears WCAG 3:1 against the
+       white panel, because these bars are the sole colour-carried signal on the board and
+       a bar that fails contrast is a machine a supervisor cannot identify. --m3 (#e07c1a,
+       2.97:1) and --m7 (#b89a1c, 2.74:1) were below that line and are darkened here.
+       Colour is never the ONLY channel: every bar also prints its machine number. */
+    --m1: #2f7de0; --m2: #16a367; --m3: #b35f0a; --m4: #9457e0;
+    --m5: #e0417a; --m6: #0ea5a0; --m7: #8f7810; --mx: #6f7686;
 
     --mono: "Geist Mono", ui-monospace, "SF Mono", "Cascadia Mono", "Consolas", monospace;
     --sans: "Geist", -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
@@ -53,7 +54,6 @@
     --fs-base: 14px;  /* primary body / default */
     --fs-md: 15px;    /* table data cells — the numbers people scan all day */
     --fs-lg: 17px;    /* group labels, card titles */
-    --fs-xl: 20px;    /* subtotal figures */
     --fs-2xl: 26px;   /* grand-total hero figures */
 
     /* Spacing scale — 4px base grid. */
@@ -77,16 +77,25 @@
     border-bottom: 1px solid var(--line);
     padding: var(--sp-3) var(--sp-4); display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap;
   }
-  .brand { display: flex; align-items: center; gap: var(--sp-2); margin-right: var(--sp-1); }
-  .brand .dot {
-    width: 9px; height: 9px; border-radius: 50%; background: var(--amber);
-    box-shadow: 0 0 8px 1px var(--amber);
-    animation: pulse 2.4s ease-in-out infinite;
+  .brand { display: flex; align-items: baseline; gap: var(--sp-2); margin-right: var(--sp-1); }
+  /* The one ratified brand commitment is the YPP name; it was absent from the surface
+     entirely while decorative chrome was elaborated. */
+  .brand .wordmark {
+    font-family: var(--mono); font-size: var(--fs-md); font-weight: 800; letter-spacing: .04em;
+    color: var(--primary); white-space: nowrap;
   }
-  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
   header h1 {
     font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700;
-    letter-spacing: .06em; text-transform: uppercase; color: var(--ink); white-space: nowrap;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--dim); white-space: nowrap;
+  }
+  /* Screen-reader-only: visually gone, still announced. */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  /* Keyboard focus must be visible on every control — there was no focus style at all. */
+  .tab:focus-visible, .clear-x:focus-visible, .jump-today:focus-visible {
+    outline: 2px solid var(--primary); outline-offset: 2px;
   }
 
   .tabs { display: flex; gap: 2px; background: var(--panel-alt); padding: 3px; border-radius: 6px; border: 1px solid var(--line); }
@@ -105,28 +114,45 @@
     background: var(--panel); color: var(--ink); font-family: var(--sans); font-size: var(--fs-sm);
   }
   .filter-wrap input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(30,64,175,.14); }
-  .filter-wrap input::placeholder { color: var(--faint); }
+  .filter-wrap input::placeholder { color: var(--dim); }
   .filter-wrap::before {
     content: '⌕'; position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
-    color: var(--faint); font-size: 15px; pointer-events: none;
+    color: var(--dim); font-size: var(--fs-md); pointer-events: none;
   }
+  /* Was a 14x14px <span> with a click handler: unreachable by keyboard and far under the
+     44px touch minimum. Now a real button with a 44px hit area. */
   .filter-wrap .clear-x {
-    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-    color: var(--faint); cursor: pointer; font-size: 14px; display: none; user-select: none;
+    position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
+    color: var(--dim); cursor: pointer; font-size: var(--fs-base); display: none;
+    width: 44px; height: 44px; align-items: center; justify-content: center;
+    background: none; border: none; border-radius: 6px; padding: 0;
   }
   .filter-wrap .clear-x:hover { color: var(--ink); }
-  .filter-wrap.has-value .clear-x { display: block; }
+  .filter-wrap.has-value .clear-x { display: flex; }
 
+  /* Freshness stamp. This slot used to hold a wall clock ticking seconds on a schedule whose
+     granularity is days — precision about the wrong thing. It now reports the age of the data,
+     which is the only time value that can mislead someone into running the wrong job. */
   .clock {
     font-family: var(--mono); font-size: var(--fs-xs); color: var(--dim);
     white-space: nowrap; font-variant-numeric: tabular-nums; padding-left: var(--sp-1);
+    display: flex; align-items: center; gap: 6px;
   }
   .clock b { color: var(--ink); font-weight: 700; }
+  .clock .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; background: var(--dim); }
+  /* Three states, each also carried by the adjacent text — never colour alone. */
+  .clock.is-fresh .dot { background: var(--ok); }
+  .clock.is-aging .dot { background: var(--amber); }
+  .clock.is-stale .dot { background: var(--today); }
+  .clock.is-stale { color: var(--today); font-weight: 700; }
 
   main { padding: var(--sp-4); max-width: 100%; margin: 0 auto; }
 
   /* ---------------- legend ---------------- */
+  /* Sticky: it maps colour to machine, and scrolling it away left hue as an unresolvable
+     signal exactly when the user had scrolled far enough to need it. */
   .legend {
+    position: sticky; top: 0; z-index: 5; background: var(--bg);
     display: flex; gap: var(--sp-3); flex-wrap: wrap; align-items: center;
     padding: var(--sp-2) var(--sp-1) var(--sp-3); font-family: var(--sans); font-size: var(--fs-xs); font-weight: 500; color: var(--dim);
   }
@@ -142,10 +168,25 @@
        extent of its own, so the header had nothing to stick within and simply left the screen
        with the container. Bounding the height makes the container the thing that scrolls, so
        the dates hold their position while rows move under them. */
-    overflow: auto; max-height: calc(100vh - 190px); overscroll-behavior: contain;
+     The offset is a CSS variable rather than a literal because the header flex-wraps at
+     ~1050px and grows ~40px; JS measures the real header height and updates it, so the
+     table's bottom edge never lands below the fold. */
+    overflow: auto; max-height: calc(100vh - var(--chrome-h, 190px)); overscroll-behavior: contain;
     border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
     margin-bottom: var(--sp-4);
   }
+  /* Freeze Code + Item. Scrolling right to next week used to slide the row's identity off
+     the left edge, leaving a field of coloured rectangles the planner had to count rows to
+     identify — which destroys one axis of the only thing a Gantt is for. */
+  th:first-child, th:nth-child(2) { position: sticky; z-index: 6; background: var(--panel-alt); }
+  td:first-child, td:nth-child(2) { position: sticky; background: var(--panel); }
+  th:first-child, td:first-child { left: 0; }
+  th:nth-child(2), td:nth-child(2) { left: var(--froz-1, 96px); }
+  td:first-child, td:nth-child(2) { z-index: 2; }
+  /* The seam needs to read as an edge, or frozen cells look like they overlap the grid. */
+  th:nth-child(2), td:nth-child(2) { box-shadow: 6px 0 6px -6px rgba(22,24,29,.18); }
+  .group-row td:first-child, .subtotal-row td:first-child,
+  .group-row td:nth-child(2), .subtotal-row td:nth-child(2) { background: var(--panel-alt); }
   table { border-collapse: collapse; width: max-content; min-width: 100%; }
   th, td {
     padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap;
@@ -179,16 +220,39 @@
 
   /* date grid: compact day columns so the whole ~30-day span fits with far less horizontal
      scroll. Narrow cells, tight labels — the colored bars still read clearly. */
+  /* Day number horizontal, month printed once per change. Rotated 10px grey text was
+     unreadable at the 600-900mm off-axis distance a shared plant tablet is actually viewed
+     from; a 2-digit day number needs no rotation to fit 24px. */
   .date-th {
-    width: 22px; min-width: 22px; padding: 6px 0; text-align: center; font-size: 10px;
-    writing-mode: vertical-rl; transform: rotate(180deg); height: 58px; color: var(--dim);
-    border-left: 1px solid var(--line); font-weight: 700;
+    width: 24px; min-width: 24px; padding: 5px 0; text-align: center; font-size: var(--fs-2xs);
+    height: 44px; color: var(--ink); border-left: 1px solid var(--line); font-weight: 700;
+    vertical-align: bottom; line-height: 1.15;
   }
-  .date-th.is-today { background: rgba(194,63,31,.12); color: var(--today); font-weight: 800; }
-  .date-td { width: 22px; min-width: 22px; padding: 4px 0; border-left: 1px solid var(--line); }
-  .date-td.is-today-col { box-shadow: inset 2px 0 0 var(--today), inset -2px 0 0 var(--today); }
+  .date-th .dmon {
+    display: block; font-size: var(--fs-2xs); font-weight: 800; color: var(--primary);
+    text-transform: uppercase; letter-spacing: .02em;
+  }
+  .date-th .dmon:empty { visibility: hidden; }
+  .date-th .dmon::after { content: '\00a0'; }
+  /* Today is marked on THREE channels — tint, a full-height column wash, and a printed cap —
+     because a 2px hairline is erased by a scratched screen protector, and colour alone fails
+     the ~8% of the floor with red-green deficiency. */
+  .date-th.is-today { background: rgba(209,55,74,.14); color: var(--today); font-weight: 800; }
+  .date-th.is-today .dmon { color: var(--today); }
+  .date-td { width: 24px; min-width: 24px; padding: 4px 0; border-left: 1px solid var(--line); }
+  .date-td.is-today-col {
+    background: rgba(209,55,74,.09);
+    box-shadow: inset 2px 0 0 var(--today), inset -2px 0 0 var(--today);
+  }
   tr:not(.group-row):not(.subtotal-row) .date-td { padding-top: 5px; padding-bottom: 5px; }
-  .date-fill { display: block; height: 100%; min-height: 30px; }
+  .date-fill { display: block; height: 100%; min-height: 30px; position: relative; }
+  /* Machine number inside the bar's first cell — the redundant channel that makes the
+     palette decorative rather than load-bearing. */
+  .date-fill .mnum {
+    position: absolute; left: 3px; top: 50%; transform: translateY(-50%);
+    font-family: var(--mono); font-size: var(--fs-2xs); font-weight: 800; color: #fff;
+    line-height: 1; text-shadow: 0 1px 2px rgba(0,0,0,.35); pointer-events: none;
+  }
 
   /* ---------------- grand total strip ---------------- */
   .grand {
@@ -243,51 +307,58 @@
   .card-group-head .sub { flex: 0 0 auto; font-family: var(--sans); font-weight: 600; color: var(--dim); font-size: var(--fs-2xs); }
   .card { border-bottom: 1px solid var(--line); padding: var(--sp-3); }
   .card:last-child { border-bottom: none; }
-  /* code + product name on a SINGLE line: code chip, then name taking the remaining width
-     (ellipsis if it can't fit, so the row never wraps). */
-  .card-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: var(--sp-2); min-width: 0; }
+  /* Code chip on its own line, product name beneath it on up to two full-width lines.
+     The previous single-line version put the chip and the name in one flex row, which left
+     a long name ~200px on a 360px phone and cropped it to "ARZOL 900 ML/1 LTR G…". The
+     product name is how the manager identifies the job — it is the one string on the card
+     that must never be guessed at, so it gets the full card width. */
+  .card-top { margin-bottom: var(--sp-2); min-width: 0; }
   .card-top .code {
-    flex: 0 0 auto; font-weight: 700; font-size: var(--fs-sm); font-family: var(--mono);
+    display: inline-block; font-weight: 700; font-size: var(--fs-xs); font-family: var(--mono);
     letter-spacing: .02em; color: var(--ink);
     background: var(--panel-alt); border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px;
   }
   .card-top .name {
-    flex: 1 1 auto; min-width: 0; color: var(--dim); font-weight: 600; font-size: var(--fs-sm);
-    font-family: var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+    overflow: hidden; margin-top: 5px;
+    color: var(--ink); font-weight: 600; font-size: var(--fs-sm);
+    font-family: var(--sans); line-height: 1.3;
   }
-  .card-grid {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 10px; font-family: var(--mono);
-    font-size: var(--fs-sm); margin-bottom: var(--sp-2);
+  /* Machine identity as text, not hue alone — the bar colour below is decoration, this is
+     the fact. Mirrors the desktop bar label. */
+  .card-top .mch {
+    display: inline-block; margin-left: 6px; font-family: var(--mono); font-size: var(--fs-2xs);
+    font-weight: 700; color: #fff; border-radius: 5px; padding: 3px 7px; letter-spacing: .02em;
   }
-  .card-grid div { display: flex; flex-direction: column; }
-  .card-grid b { font-variant-numeric: tabular-nums; font-size: var(--fs-md); font-weight: 700; color: var(--ink); }
-  .card-grid span { color: var(--faint); font-size: var(--fs-2xs); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
-
-  /* single inline metrics row: Qty · Supp · Ready · Bal · Days — all five across one line,
-     label above value, tabular numerals. Fills the phone width, no wrapping. */
+  /* Metrics grid. Column count is NOT hardcoded: the row carries 5 metrics normally and 7 in
+     Color view (RM Req + MB), and a fixed `repeat(5, 1fr)` pushed those two extras onto a
+     ragged second row whose columns did not line up with the first. auto-fit lets both counts
+     resolve to even columns, and when 7 cannot fit the width they wrap into a TIDY second row
+     of equal cells instead of a misaligned remainder. */
   .metric-row {
-    display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
-    margin-bottom: var(--sp-2); padding: 8px 0; border-top: 1px solid var(--line);
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); gap: 10px 4px;
+    margin-bottom: var(--sp-2); padding: 9px 0; border-top: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
   }
   .metric-row > div {
     display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0;
   }
+  /* was 9px --faint (2.89:1, fails AA at any size). These labels name the numbers; on a phone
+     held at arm's length under plant light they have to be readable, not decorative. */
   .metric-row span {
-    color: var(--faint); font-size: 9px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .02em; font-family: var(--sans); margin-bottom: 2px;
+    color: var(--dim); font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase;
+    letter-spacing: .02em; font-family: var(--sans); margin-bottom: 3px;
   }
   .metric-row b {
     font-family: var(--mono); font-variant-numeric: tabular-nums;
-    font-size: var(--fs-sm); font-weight: 700; color: var(--ink); line-height: 1;
+    font-size: var(--fs-md); font-weight: 700; color: var(--ink); line-height: 1;
   }
   .card .prop-bar { height: 26px; margin-top: var(--sp-1); }
-  .card .dates { display: flex; justify-content: space-between; font-family: var(--mono); font-size: var(--fs-xs); font-weight: 600; color: var(--dim); margin-top: var(--sp-1); }
 
   /* extra-compact timeline: [startDate] ——●═════●—— [endDate] on one line */
   .cbar { display: flex; align-items: center; gap: 7px; }
   .cbar-lbl {
-    flex: 0 0 auto; font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--dim);
+    flex: 0 0 auto; font-family: var(--mono); font-size: var(--fs-2xs); font-weight: 700; color: var(--dim);
     font-variant-numeric: tabular-nums; white-space: nowrap;
   }
   .cbar-track {
@@ -300,37 +371,11 @@
     transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--panel); z-index: 2;
   }
   .cbar-today { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--today); z-index: 3; }
-  .cbar-empty { font-family: var(--mono); font-size: 10.5px; color: var(--faint); padding: 3px 0; }
+  .cbar-empty { font-family: var(--mono); font-size: var(--fs-2xs); color: var(--dim); padding: 3px 0; }
 
-  /* mobile day-grid: horizontally scrollable strip, same day columns as desktop */
-  .mgrid {
-    margin-top: var(--sp-1); overflow-x: auto; -webkit-overflow-scrolling: touch;
-    border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
-    scrollbar-width: thin;
-  }
-  .mgrid::-webkit-scrollbar { height: 5px; }
-  .mgrid::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
-  .mg-track { display: inline-block; min-width: 100%; }
-  .mg-row { display: flex; }
-  .mg-h, .mg-c { flex: 0 0 30px; width: 30px; box-sizing: border-box; border-left: 1px solid var(--line); }
-  .mg-h:first-child, .mg-c:first-child { border-left: none; }
-  .mg-head {
-    position: sticky; top: 0; background: var(--panel-alt);
-    border-bottom: 1px solid var(--line);
-  }
-  .mg-h {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 4px 0; font-family: var(--mono); line-height: 1.1;
-  }
-  .mg-h .mg-d { font-size: var(--fs-2xs); font-weight: 700; color: var(--dim); }
-  .mg-h .mg-m { font-size: 8px; font-weight: 700; text-transform: uppercase; color: var(--faint); letter-spacing: .02em; }
-  .mg-c { height: 26px; padding: 4px 3px; position: relative; }
-  .mg-fill { position: absolute; inset: 4px 0; display: block; }
-  /* colored day cells butt together into a continuous bar within a job's span */
-  .mg-c .mg-fill { left: -1px; right: -1px; }
-  .mg-today { background: rgba(209,55,74,.12); }
-  .mg-head .mg-today { box-shadow: inset 0 -2px 0 var(--today); }
-  .mg-body .mg-today { box-shadow: inset 2px 0 0 var(--today), inset -2px 0 0 var(--today); }
+  /* The per-card mobile day-grid (.mgrid / mobileGridHtml) was removed here: it was fully
+     built but never called, and compactBar is the better answer for a phone anyway — the
+     whole interval reads at a glance instead of requiring a scroll inside every card. */
 
   /* .table-scroll is deliberately NOT in this list: it needs `overflow: auto` for its sticky
      date header, and this rule comes later in the cascade, so including it here silently
@@ -346,16 +391,21 @@
   @media (max-width: 620px) {
     .tablet-cards { display: none; }
     .cards { display: block; }
-    /* compact, thumb-friendly header: brand + clock drop away, tabs scroll horizontally,
-       filter takes the full second row so search targets are large. */
+    /* compact, thumb-friendly header: the h1 drops away, tabs scroll horizontally,
+       filter takes the full second row so search targets are large. The freshness stamp
+       STAYS — the manager on a phone is the person least able to tell whether the plan
+       they are reading is current, so it is the last thing to cut, not the first. */
     header { padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); align-items: stretch; }
-    header h1, .brand, .clock { display: none; }
+    header h1 { display: none; }
+    .brand { order: 0; }
+    .brand .wordmark { font-size: var(--fs-sm); }
     .tabs {
       order: 2; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
       scrollbar-width: none; flex-wrap: nowrap; justify-content: flex-start;
     }
     .tabs::-webkit-scrollbar { display: none; }
-    .tab { flex: 0 0 auto; padding: 9px 16px; font-size: var(--fs-base); }
+    /* 44px minimum touch target — was 39px. */
+    .tab { flex: 0 0 auto; padding: 12px 16px; font-size: var(--fs-base); min-height: 44px; }
     .filter-wrap { order: 1; margin-left: 0; max-width: none; width: 100%; }
     .filter-wrap input { padding: 11px 12px 11px 34px; font-size: var(--fs-base); }
     main { padding: var(--sp-2); }
@@ -363,26 +413,62 @@
   }
 
   .empty { padding: 48px 20px; text-align: center; color: var(--dim); font-family: var(--sans); font-weight: 500; font-size: var(--fs-base); }
+  /* Recovery affordance inside empty/error states — previously the only way out of a failed
+     load was a manual page reload. */
+  .linkish {
+    background: none; border: none; padding: 6px 8px; margin-left: 4px; cursor: pointer;
+    color: var(--primary); font-family: var(--sans); font-size: var(--fs-base); font-weight: 700;
+    text-decoration: underline; text-underline-offset: 2px; border-radius: 6px;
+  }
+  .linkish:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+  .jump-today {
+    margin-left: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 12px; min-height: 32px; cursor: pointer;
+    font-family: var(--sans); font-size: var(--fs-xs); font-weight: 700; color: var(--primary);
+  }
+  .jump-today:hover { border-color: var(--primary); }
+
+  /* Mobile group subtotal — matches the tablet/desktop treatment. */
+  .card-sub {
+    display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-2);
+    padding: 9px var(--sp-3); background: var(--panel-alt);
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    font-family: var(--sans); font-size: var(--fs-xs); font-weight: 700; color: var(--dim);
+  }
+  .card-sub b { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="brand"><span class="dot"></span><h1>Dispatch Console</h1></div>
-  <div class="tabs">
-    <button class="tab active" data-view="po">By PO</button>
-    <button class="tab" data-view="product">By Product</button>
-    <button class="tab" data-view="machine">By Machine</button>
-    <button class="tab" data-view="color">By Color</button>
+  <div class="brand">
+    <span class="wordmark">YPP</span>
+    <h1>Dispatch</h1>
+  </div>
+  <div class="tabs" role="tablist" aria-label="Group schedule by">
+    <button class="tab active" data-view="po" role="tab" aria-selected="true">By PO</button>
+    <button class="tab" data-view="product" role="tab" aria-selected="false">By Product</button>
+    <button class="tab" data-view="machine" role="tab" aria-selected="false">By Machine</button>
+    <button class="tab" data-view="color" role="tab" aria-selected="false">By Color</button>
   </div>
   <div class="filter-wrap">
-    <input type="text" id="filterInput" placeholder="filter code or name…">
-    <span class="clear-x" id="filterClear">✕</span>
+    <label class="sr-only" for="filterInput">Filter by code, product name or PO</label>
+    <input type="text" id="filterInput" placeholder="filter code, name or PO…">
+    <button type="button" class="clear-x" id="filterClear" aria-label="Clear filter">✕</button>
   </div>
-  <div class="clock" id="clock"></div>
+  <!-- Freshness, not decoration: the dot reflects measured age and is always paired with
+       the text stamp, never carrying the meaning on its own. -->
+  <div class="clock" id="clock" title="Time of the last successful update">
+    <span class="dot" id="freshDot"></span><span id="freshText">loading…</span>
+  </div>
 </header>
 
-<main id="main">
+<main id="main" aria-live="polite" aria-busy="true">
   <div class="empty">loading…</div>
 </main>
 
@@ -395,11 +481,26 @@ var FILTER = '';
 var TODAY = null;
 var MACHINES_SEEN = [];
 
+var LAST_OK = null;   // Date of the last successful fetch — the freshness stamp's source.
+
 function colorFor(machine) { return PALETTE[machine] || 'var(--mx)'; }
-function fmtNum(n) { return Math.round(n).toLocaleString(); }
-function fmtDate(d) { return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' }); }
+function fmtNum(n) { var v = Number(n); return isFinite(v) ? Math.round(v).toLocaleString('en-IN') : '—'; }
+/* Locale is pinned to en-IN rather than the device default: a manager whose phone is set to
+   US locale was reading dates in a different order from the planner's sheet, on a surface
+   whose whole job is agreeing with that sheet. */
+function fmtDate(d) { return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }); }
 function fmtDay(d) { return d.getDate(); }
-function fmtMon(d) { return d.toLocaleDateString(undefined, { month: 'short' }); }
+function fmtMon(d) { return d.toLocaleDateString('en-IN', { month: 'short' }); }
+
+/* Every value below comes from a hand-edited Google Sheet and is written into innerHTML.
+   Unescaped, an apostrophe in a product name breaks the render, and anyone with edit access
+   to the sheet can run script in every viewer's browser — including on the owner's phone,
+   on a URL with no authentication. */
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 function groupKeyFns() {
   return {
@@ -418,23 +519,34 @@ function sumRows(rows) {
   }, { orderQty: 0, supplied: 0, readyStock: 0, balance: 0, rmReq: 0, mb: 0 });
 }
 
-function startClock() {
-  var el = document.getElementById('clock');
-  function tick() {
-    var d = new Date();
-    var date = d.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
-    var time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    el.innerHTML = date + ' &nbsp; <b>' + time + '</b>';
-  }
-  tick();
-  setInterval(tick, 1000);
+/* Reports how old the data is, in three bands. A shared tablet left open all shift used to
+   show morning's plan under a pulsing "live" dot with no way to tell — this is the fix for
+   that, and it is why the dot is now driven by measured age instead of a CSS animation. */
+function paintFreshness() {
+  var box = document.getElementById('clock');
+  var text = document.getElementById('freshText');
+  if (!LAST_OK) return;
+  var mins = Math.floor((Date.now() - LAST_OK.getTime()) / 60000);
+  var stamp = LAST_OK.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  var label;
+  if (mins < 1) label = 'Updated just now';
+  else if (mins < 60) label = 'Updated ' + mins + ' min ago';
+  else label = 'Updated ' + stamp + ' — may be out of date';
+  text.innerHTML = mins >= 60 ? esc(label) : esc(label) + ' &nbsp;<b>' + esc(stamp) + '</b>';
+  box.classList.toggle('is-fresh', mins < 5);
+  box.classList.toggle('is-aging', mins >= 5 && mins < 30);
+  box.classList.toggle('is-stale', mins >= 30);
 }
 
 function applyFilter(rows) {
   if (!FILTER) return rows;
   var q = FILTER.toLowerCase();
+  // PO is searchable too — By PO is the default view, yet filtering by a PO number used to
+  // return nothing.
   return rows.filter(function (r) {
-    return r.code.toLowerCase().indexOf(q) !== -1 || r.name.toLowerCase().indexOf(q) !== -1;
+    return String(r.code).toLowerCase().indexOf(q) !== -1
+      || String(r.name).toLowerCase().indexOf(q) !== -1
+      || String(r.po).toLowerCase().indexOf(q) !== -1;
   });
 }
 
@@ -457,16 +569,30 @@ function computeDateCols(rows) {
     minD = gridStart;
     maxD = new Date(Math.max.apply(null, ends.concat([gridStart])));
   }
+  // Hard ceiling. maxD comes from sheet data, so a single end date mistyped as 2027 would
+  // otherwise generate ~500 day columns on every row and hang the browser — a typo in one
+  // cell must not be able to take the board down.
+  var MAX_DAYS = 120;
   var days = Math.max(1, Math.round((maxD - minD) / msDay)) + 1;
+  if (days > MAX_DAYS) days = MAX_DAYS;
   var cols = [];
   for (var i = 0; i < days; i++) cols.push(new Date(minD.getTime() + i * msDay));
   DATE_COLS = cols;
 }
 
+/* Day number on its own line, month printed only when it changes — the same pattern the
+   mobile grid already used. Replaces rotated 10px text that could not be read at the
+   distance a wall-mounted tablet is actually viewed from. */
 function dateHeaderHtml() {
+  var lastMon = null;
   return DATE_COLS.map(function (d) {
     var isToday = d.getTime() === TODAY.getTime();
-    return '<th class="date-th' + (isToday ? ' is-today' : '') + '">' + fmtDay(d) + ' ' + fmtMon(d) + '</th>';
+    var mon = fmtMon(d);
+    var showMon = (mon !== lastMon);
+    lastMon = mon;
+    return '<th class="date-th' + (isToday ? ' is-today' : '') + '" scope="col">'
+      + '<span class="dmon">' + (showMon ? esc(mon) : '') + '</span>'
+      + fmtDay(d) + '</th>';
   }).join('');
 }
 
@@ -476,17 +602,28 @@ function dateCellsHtml(r) {
   }
   var s = new Date(r.start), e = new Date(r.end);
   var color = colorFor(r.machine);
+  var firstActive = true;
   return DATE_COLS.map(function (d) {
     var isToday = d.getTime() === TODAY.getTime();
     var active = d >= s && d < e;
     var cls = 'date-td' + (isToday ? ' is-today-col' : '');
-    var fill = active ? '<span class="date-fill" style="background:' + color + '" title="' + r.code + ': ' + fmtDate(s) + '–' + fmtDate(e) + '"></span>' : '';
+    var fill = '';
+    if (active) {
+      // Machine number printed in the bar's first cell: colour alone cannot be read by the
+      // ~8% of the floor with red-green deficiency, and the legend is off-screen once the
+      // planner has scrolled. The hue stays for fast pattern-scanning; the digit is the fact.
+      var label = firstActive ? '<span class="mnum">' + esc(r.machine) + '</span>' : '';
+      firstActive = false;
+      fill = '<span class="date-fill" style="background:' + color + '" title="'
+        + esc('M' + r.machine + ' · ' + r.code + ': ' + fmtDate(s) + '–' + fmtDate(e))
+        + '">' + label + '</span>';
+    }
     return '<td class="' + cls + '">' + fill + '</td>';
   }).join('');
 }
 
 function proportionalBar(r) {
-  if (!r.start || !r.end || !DATE_COLS.length) return '<span style="color:var(--faint);font-family:var(--mono);font-size:10.5px">not scheduled</span>';
+  if (!r.start || !r.end || !DATE_COLS.length) return '<span class="cbar-empty">not scheduled</span>';
   var rangeStart = DATE_COLS[0].getTime();
   var totalMs = DATE_COLS[DATE_COLS.length - 1].getTime() - rangeStart + 86400000;
   function pct(d) { return Math.max(0, Math.min(100, ((d - rangeStart) / totalMs) * 100)); }
@@ -496,32 +633,6 @@ function proportionalBar(r) {
   var todayMark = (todayPct >= 0 && todayPct <= 100) ? '<div class="today-mark" style="left:' + todayPct + '%"></div>' : '';
   return '<div class="prop-bar">' + todayMark +
     '<div class="fill" style="left:' + left + '%;width:' + width + '%;background:' + colorFor(r.machine) + '"></div></div>';
-}
-
-// Mobile day-grid: the SAME per-day columns as desktop, but as a horizontally-scrollable strip
-// inside each card — a sticky day-header row above a row of the job's colored day-cells, aligned
-// 1:1 so operators can read exactly which calendar days the job occupies. Auto-scrolls so the
-// job's start day is in view on first paint.
-function mobileGridHtml(r) {
-  if (!DATE_COLS.length) return '';
-  var s = r.start ? new Date(r.start) : null, e = r.end ? new Date(r.end) : null;
-  var color = colorFor(r.machine);
-  var startIdx = -1;
-  var head = '', cells = '';
-  DATE_COLS.forEach(function (d, i) {
-    var isToday = d.getTime() === TODAY.getTime();
-    var active = s && e && d >= s && d < e;
-    if (active && startIdx === -1) startIdx = i;
-    var newMonth = (i === 0) || (d.getDate() === 1);
-    head += '<div class="mg-h' + (isToday ? ' mg-today' : '') + '">' +
-      '<span class="mg-d">' + fmtDay(d) + '</span>' +
-      '<span class="mg-m">' + (newMonth || isToday ? fmtMon(d) : '') + '</span></div>';
-    cells += '<div class="mg-c' + (isToday ? ' mg-today' : '') + '">' +
-      (active ? '<span class="mg-fill" style="background:' + color + '"></span>' : '') + '</div>';
-  });
-  return '<div class="mgrid" data-startidx="' + startIdx + '">' +
-    '<div class="mg-track"><div class="mg-row mg-head">' + head + '</div>' +
-    '<div class="mg-row mg-body">' + cells + '</div></div></div>';
 }
 
 // Extra-compact mobile timeline: a slim bar positioned across the whole date range, with a start
@@ -567,13 +678,27 @@ function render() {
     groups[k].rows.push(r);
   });
   if (VIEW === 'machine') order.sort(function (a, b) { return Number(a) - Number(b); });
-  if (VIEW === 'color' || VIEW === 'po') order.sort();
+  // numeric:true so PO-10 sorts after PO-9 rather than before it.
+  if (VIEW === 'color' || VIEW === 'po') {
+    order.sort(function (a, b) { return String(a).localeCompare(String(b), 'en', { numeric: true }); });
+  }
   order.forEach(function (k) { groups[k].rows.sort(function (a, b) { return (a.priority || 999) - (b.priority || 999); }); });
 
   var grand = sumRows(filteredRows);
 
   if (!order.length) {
-    document.getElementById('main').innerHTML = '<div class="empty">no rows match' + (FILTER ? ' "' + FILTER + '"' : '') + '</div>';
+    // An empty schedule and a filter that matched nothing are different facts. Saying
+    // "no rows match" when the sheet is simply empty sends the reader hunting for a filter
+    // that isn't set.
+    var emptyMsg = FILTER
+      ? '<div class="empty">No jobs match “' + esc(FILTER) + '”.'
+        + ' <button type="button" class="linkish" id="emptyClear">Clear filter</button></div>'
+      : '<div class="empty">No jobs scheduled.</div>';
+    var mainEl = document.getElementById('main');
+    mainEl.innerHTML = emptyMsg;
+    mainEl.setAttribute('aria-busy', 'false');
+    var ec = document.getElementById('emptyClear');
+    if (ec) ec.addEventListener('click', clearFilter);
     return;
   }
 
@@ -582,30 +707,36 @@ function render() {
   // ---- legend ----
   html += '<div class="legend">';
   MACHINES_SEEN.forEach(function (m) {
-    html += '<span class="chip"><i style="background:' + colorFor(m) + '"></i>Machine ' + m + '</span>';
+    html += '<span class="chip"><i style="background:' + colorFor(m) + '"></i>Machine ' + esc(m) + '</span>';
   });
-  html += '<span class="chip today-chip"><i></i>Today</span></div>';
+  html += '<span class="chip today-chip"><i></i>Today</span>';
+  html += '<button type="button" class="jump-today" id="jumpToday">Jump to today</button>';
+  html += '</div>';
 
-  var extraTh = showRmMb ? '<th>RM</th><th>MB</th>' : '';
+  // Full words, not "Sup"/"D" — the abbreviations were unglossable and inconsistent with the
+  // other two renderings, which spelled the same metrics differently again.
+  var extraTh = showRmMb ? '<th scope="col">RM Req</th><th scope="col">MB</th>' : '';
   var dateHeader = dateHeaderHtml();
   var totalCols = 7 + (showRmMb ? 2 : 0) + DATE_COLS.length;
 
   // ---- desktop: single unified table ----
   html += '<div class="table-scroll"><table><thead><tr>' +
-    '<th>Code</th><th>Item</th><th>Qty</th><th>Sup</th><th>Ready</th><th>Bal</th>' + extraTh + '<th>D</th>' + dateHeader +
+    '<th scope="col">Code</th><th scope="col">Item</th><th scope="col">Qty</th>'
+    + '<th scope="col">Supplied</th><th scope="col">Ready</th><th scope="col">Balance</th>'
+    + extraTh + '<th scope="col">Days</th>' + dateHeader +
     '</tr></thead><tbody>';
   order.forEach(function (k) {
     var grp = groups[k];
     var sub = sumRows(grp.rows);
-    html += '<tr class="group-row"><td colspan="' + totalCols + '"><span>' + grp.label + '</span>' +
+    html += '<tr class="group-row"><td colspan="' + totalCols + '"><span>' + esc(grp.label) + '</span>' +
       '<span class="sub">' + grp.rows.length + ' item' + (grp.rows.length === 1 ? '' : 's') + '</span></td></tr>';
     grp.rows.forEach(function (r) {
       var extraTd = showRmMb ? '<td class="num">' + fmtNum(r.rmReq) + '</td><td class="num">' + fmtNum(r.mb) + '</td>' : '';
-      html += '<tr><td class="data-col">' + r.code + '</td><td class="data-col">' + r.name + '</td>' +
+      html += '<tr><td class="data-col">' + esc(r.code) + '</td><td class="data-col">' + esc(r.name) + '</td>' +
         '<td class="num">' + fmtNum(r.orderQty) + '</td><td class="num">' + fmtNum(r.supplied) + '</td>' +
         '<td class="num">' + fmtNum(r.readyStock) + '</td>' +
         '<td class="num">' + fmtNum(r.balance) + '</td>' + extraTd +
-        '<td class="num">' + (r.days || '—') + '</td>' + dateCellsHtml(r) + '</tr>';
+        '<td class="num">' + esc(r.days || '—') + '</td>' + dateCellsHtml(r) + '</tr>';
     });
     var extraTf = showRmMb ? '<td class="num">' + fmtNum(sub.rmReq) + '</td><td class="num">' + fmtNum(sub.mb) + '</td>' : '';
     var dateFootCells = DATE_COLS.map(function () { return '<td class="date-td"></td>'; }).join('');
@@ -621,15 +752,15 @@ function render() {
   order.forEach(function (k) {
     var grp = groups[k];
     var sub = sumRows(grp.rows);
-    html += '<div class="tcard-group"><span>' + grp.label + '</span><span class="sub">' + grp.rows.length + ' item' + (grp.rows.length === 1 ? '' : 's') + '</span></div>';
+    html += '<div class="tcard-group"><span>' + esc(grp.label) + '</span><span class="sub">' + grp.rows.length + ' item' + (grp.rows.length === 1 ? '' : 's') + '</span></div>';
     grp.rows.forEach(function (r) {
       html += '<div class="tcard">' +
-        '<span class="code">' + r.code + '<small>' + r.name + '</small></span>' +
+        '<span class="code">' + esc(r.code) + '<small>' + esc(r.name) + '</small></span>' +
         '<span class="val"><span class="lbl">Qty</span>' + fmtNum(r.orderQty) + '</span>' +
-        '<span class="val"><span class="lbl">Sup</span>' + fmtNum(r.supplied) + '</span>' +
+        '<span class="val"><span class="lbl">Supplied</span>' + fmtNum(r.supplied) + '</span>' +
         '<span class="val"><span class="lbl">Ready</span>' + fmtNum(r.readyStock) + '</span>' +
-        '<span class="val"><span class="lbl">Bal</span>' + fmtNum(r.balance) + '</span>' +
-        '<span class="val"><span class="lbl">Days</span>' + (r.days || '—') + '</span>' +
+        '<span class="val"><span class="lbl">Balance</span>' + fmtNum(r.balance) + '</span>' +
+        '<span class="val"><span class="lbl">Days</span>' + esc(r.days || '—') + '</span>' +
         proportionalBar(r) +
         '</div>';
     });
@@ -642,30 +773,36 @@ function render() {
   order.forEach(function (k) {
     var grp = groups[k];
     var sub = sumRows(grp.rows);
-    html += '<div class="card-group-head"><span>' + grp.label + '</span><span class="sub">' + grp.rows.length + ' item' + (grp.rows.length === 1 ? '' : 's') + '</span></div>';
+    html += '<div class="card-group-head"><span>' + esc(grp.label) + '</span><span class="sub">' + grp.rows.length + ' item' + (grp.rows.length === 1 ? '' : 's') + '</span></div>';
     grp.rows.forEach(function (r) {
       var extraCard = showRmMb
         ? '<div><span>RM Req</span><b>' + fmtNum(r.rmReq) + '</b></div><div><span>MB</span><b>' + fmtNum(r.mb) + '</b></div>'
         : '';
-      var dates = (r.start && r.end)
-        ? '<div class="dates"><span>' + fmtDate(new Date(r.start)) + '</span><span>' + fmtDate(new Date(r.end)) + '</span></div>'
-        : '';
+      // Machine chip: the mobile card's bar is a thin colour strip, far too small to identify
+      // a machine by hue on a phone. The number states it.
+      var mch = '<span class="mch" style="background:' + colorFor(r.machine) + '">M' + esc(r.machine) + '</span>';
       // In Product view the group header already names the product, so the per-item line shows the
       // PO number instead of repeating the product name.
       var topLine = (VIEW === 'product')
-        ? '<span class="code">' + r.po + '</span>'
-        : '<span class="code">' + r.code + '</span><span class="name">' + r.name + '</span>';
+        ? '<span class="code">' + esc(r.po) + '</span>' + mch
+        : '<span class="code">' + esc(r.code) + '</span>' + mch
+          + '<span class="name">' + esc(r.name) + '</span>';
       html += '<div class="card">' +
         '<div class="card-top">' + topLine + '</div>' +
         '<div class="metric-row">' +
         '<div><span>Qty</span><b>' + fmtNum(r.orderQty) + '</b></div>' +
-        '<div><span>Supp</span><b>' + fmtNum(r.supplied) + '</b></div>' +
+        '<div><span>Supplied</span><b>' + fmtNum(r.supplied) + '</b></div>' +
         '<div><span>Ready</span><b>' + fmtNum(r.readyStock) + '</b></div>' +
-        '<div><span>Bal</span><b>' + fmtNum(r.balance) + '</b></div>' +
-        '<div><span>Days</span><b>' + (r.days || '—') + '</b></div>' +
+        '<div><span>Balance</span><b>' + fmtNum(r.balance) + '</b></div>' +
+        '<div><span>Days</span><b>' + esc(r.days || '—') + '</b></div>' +
         extraCard +
         '</div>' + compactBar(r) + '</div>';
     });
+    // Mobile was the only rendering without a group subtotal — `sub` was computed and then
+    // discarded — leaving the manager in transit, the person least able to add figures in
+    // their head, as the only one asked to.
+    html += '<div class="card-sub"><span>Subtotal</span>'
+      + '<span><b>' + fmtNum(sub.orderQty) + '</b> qty · <b>' + fmtNum(sub.balance) + '</b> bal</span></div>';
   });
   html += '</div>';
 
@@ -680,19 +817,52 @@ function render() {
     grandExtra +
     '</div>';
 
-  document.getElementById('main').innerHTML = html;
+  var mainEl = document.getElementById('main');
+  mainEl.innerHTML = html;
+  mainEl.setAttribute('aria-busy', 'false');
 
-  // Scroll each mobile day-grid so the job's start day is in view (30px per day column).
-  document.querySelectorAll('.mgrid').forEach(function (g) {
-    var idx = parseInt(g.getAttribute('data-startidx'), 10);
-    if (idx > 1) g.scrollLeft = (idx - 1) * 30;
-  });
+  measureFrozenOffset();
+  var jt = document.getElementById('jumpToday');
+  if (jt) jt.addEventListener('click', scrollToToday);
+  scrollToToday();
+}
+
+/* The second frozen column has to start exactly where the first one ends, and the Code
+   column's width depends on its content. Measure rather than guess. */
+function measureFrozenOffset() {
+  var firstTh = document.querySelector('.table-scroll thead th:first-child');
+  if (firstTh) {
+    document.documentElement.style.setProperty('--froz-1', firstTh.getBoundingClientRect().width + 'px');
+  }
+}
+
+/* Today can sit far off the right edge of a 120-column grid; without this the marker is
+   only findable by hunting for it. */
+function scrollToToday() {
+  var box = document.querySelector('.table-scroll');
+  var cell = document.querySelector('.date-th.is-today');
+  if (!box || !cell) return;
+  var frozen = (document.querySelector('.table-scroll thead th:first-child') || { offsetWidth: 0 }).offsetWidth
+    + (document.querySelector('.table-scroll thead th:nth-child(2)') || { offsetWidth: 0 }).offsetWidth;
+  box.scrollLeft = Math.max(0, cell.offsetLeft - frozen - 80);
+}
+
+/* The header flex-wraps as the viewport narrows, so the table's max-height offset cannot be
+   a literal. Measure the real chrome height and let CSS read it. */
+function measureChrome() {
+  var h = document.querySelector('header');
+  if (!h) return;
+  document.documentElement.style.setProperty('--chrome-h', (h.getBoundingClientRect().height + 42) + 'px');
 }
 
 document.querySelectorAll('.tab').forEach(function (btn) {
   btn.addEventListener('click', function () {
-    document.querySelectorAll('.tab').forEach(function (b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tab').forEach(function (b) {
+      b.classList.remove('active');
+      b.setAttribute('aria-selected', 'false');
+    });
     btn.classList.add('active');
+    btn.setAttribute('aria-selected', 'true');
     VIEW = btn.dataset.view;
     render();
   });
@@ -701,31 +871,78 @@ document.querySelectorAll('.tab').forEach(function (btn) {
 var filterInput = document.getElementById('filterInput');
 var filterWrap = document.querySelector('.filter-wrap');
 var filterClear = document.getElementById('filterClear');
-filterInput.addEventListener('input', function () {
-  FILTER = filterInput.value.trim();
-  filterWrap.classList.toggle('has-value', !!FILTER);
-  render();
-});
-filterClear.addEventListener('click', function () {
+
+function clearFilter() {
   filterInput.value = '';
   FILTER = '';
   filterWrap.classList.remove('has-value');
   render();
-});
+  filterInput.focus();
+}
 
-startClock();
-
-fetch('/api/data')
-  .then(function (r) { return r.json(); })
-  .then(function (data) {
-    if (data && data.error) throw new Error(data.error);
-    ROWS = (data && data.rows) || [];
-    GRID_START = (data && data.gridStart) ? new Date(data.gridStart) : null;
+// Debounced: render() rebuilds all three renderings, so an undebounced keystroke handler
+// rebuilt the entire board on every character typed.
+var filterTimer = null;
+filterInput.addEventListener('input', function () {
+  filterWrap.classList.toggle('has-value', !!filterInput.value.trim());
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(function () {
+    FILTER = filterInput.value.trim();
     render();
-  })
-  .catch(function (err) {
-    document.getElementById('main').innerHTML = '<div class="empty">failed to load: ' + err + '</div>';
-  });
+  }, 140);
+});
+filterClear.addEventListener('click', clearFilter);
+
+function showLoadError(err) {
+  // The raw error is logged, never printed: it leaked internal strings such as
+  // "GAS_URL secret not configured" onto a page with no authentication. If we already have
+  // data on screen, keep it — a failed refresh should not blank a working board.
+  console.error('dispatch load failed:', err);
+  var box = document.getElementById('clock');
+  var text = document.getElementById('freshText');
+  box.classList.remove('is-fresh', 'is-aging');
+  box.classList.add('is-stale');
+  text.textContent = LAST_OK ? 'Update failed — showing older data' : 'Could not load';
+  if (!ROWS.length) {
+    document.getElementById('main').innerHTML =
+      '<div class="empty">Couldn\'t reach the schedule.'
+      + ' <button type="button" class="linkish" id="retryBtn">Try again</button></div>';
+    var rb = document.getElementById('retryBtn');
+    if (rb) rb.addEventListener('click', function () { load(); });
+  }
+}
+
+function load() {
+  return fetch('/api/data', { cache: 'no-store' })
+    .then(function (r) {
+      // Without an ok check, a 500 returning valid JSON fell through to an empty board that
+      // read as "no jobs scheduled" rather than as a failure.
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function (data) {
+      if (data && data.error) throw new Error(data.error);
+      ROWS = (data && data.rows) || [];
+      GRID_START = (data && data.gridStart) ? new Date(data.gridStart) : null;
+      LAST_OK = new Date();
+      render();
+      paintFreshness();
+    })
+    .catch(showLoadError);
+}
+
+measureChrome();
+window.addEventListener('resize', function () { measureChrome(); measureFrozenOffset(); });
+
+load();
+// Refresh on a timer AND whenever the tab is looked at again: the wall-mounted tablet is
+// never touched, and the phone in a pocket comes back to foreground hours later.
+setInterval(load, 60000);
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'visible') load();
+});
+// Re-render the stamp between fetches so "3 min ago" keeps counting up honestly.
+setInterval(paintFreshness, 30000);
 </script>
 
 </body>
