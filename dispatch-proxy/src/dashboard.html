@@ -136,14 +136,23 @@
 
   /* ---------------- desktop: unified table ---------------- */
   .table-scroll {
-    overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+    /* The date header is `position: sticky`, which resolves against the nearest scrolling
+       ancestor — and declaring overflow-x makes this box scrollable on BOTH axes, so that
+       ancestor is this container, not the viewport. Left auto-height it has no scrollable
+       extent of its own, so the header had nothing to stick within and simply left the screen
+       with the container. Bounding the height makes the container the thing that scrolls, so
+       the dates hold their position while rows move under them. */
+    overflow: auto; max-height: calc(100vh - 190px); overscroll-behavior: contain;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
     margin-bottom: var(--sp-4);
   }
   table { border-collapse: collapse; width: max-content; min-width: 100%; }
   th, td {
-    padding: var(--sp-2) 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap;
-    font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-md); font-weight: 600;
+    padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap;
+    font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-sm); font-weight: 600;
   }
+  /* date-grid cells override the data-cell padding to stay tight */
+  th.date-th, td.date-td { padding-left: 0; padding-right: 0; }
   th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
   th {
     font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: .05em; color: var(--dim);
@@ -151,8 +160,10 @@
     border-bottom: 1px solid var(--line); padding-top: 10px; padding-bottom: 10px;
   }
   td:nth-child(2) { font-family: var(--sans); color: var(--ink); font-weight: 500; font-size: var(--fs-sm); }
-  .data-col { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
-  td:first-child.data-col { font-weight: 700; }
+  /* name column: let it breathe — the table scrolls horizontally, so show the full name
+     (wrap onto a second line if long) instead of cutting it with an ellipsis. */
+  .data-col { max-width: 280px; white-space: normal; line-height: 1.3; }
+  td:first-child.data-col { font-weight: 700; white-space: nowrap; }
   tbody tr:not(.group-row):not(.subtotal-row):hover td:not(.date-td) { background: var(--panel-alt); }
 
   .group-row td {
@@ -166,18 +177,18 @@
   .subtotal-row td { font-weight: 800; background: var(--panel-alt); color: var(--ink); border-bottom: 1px solid var(--line); font-size: var(--fs-md); }
   .subtotal-row td:first-child { font-family: var(--sans); color: var(--dim); font-weight: 700; text-transform: uppercase; font-size: var(--fs-2xs); letter-spacing: .04em; }
 
-  /* date grid: THE focal element — wide columns, tall bars, bold labels.
-     Everything else in the row (code/qty/etc) stays compact by contrast. */
+  /* date grid: compact day columns so the whole ~30-day span fits with far less horizontal
+     scroll. Narrow cells, tight labels — the colored bars still read clearly. */
   .date-th {
-    width: 36px; min-width: 36px; padding: var(--sp-2) 0; text-align: center; font-size: var(--fs-xs);
-    writing-mode: vertical-rl; transform: rotate(180deg); height: 66px; color: var(--dim);
+    width: 22px; min-width: 22px; padding: 6px 0; text-align: center; font-size: 10px;
+    writing-mode: vertical-rl; transform: rotate(180deg); height: 58px; color: var(--dim);
     border-left: 1px solid var(--line); font-weight: 700;
   }
   .date-th.is-today { background: rgba(194,63,31,.12); color: var(--today); font-weight: 800; }
-  .date-td { width: 36px; min-width: 36px; padding: 4px 3px; border-left: 1px solid var(--line); }
+  .date-td { width: 22px; min-width: 22px; padding: 4px 0; border-left: 1px solid var(--line); }
   .date-td.is-today-col { box-shadow: inset 2px 0 0 var(--today), inset -2px 0 0 var(--today); }
-  tr:not(.group-row):not(.subtotal-row) .date-td { padding-top: 6px; padding-bottom: 6px; }
-  .date-fill { display: block; height: 100%; min-height: 32px; border-radius: 3px; }
+  tr:not(.group-row):not(.subtotal-row) .date-td { padding-top: 5px; padding-bottom: 5px; }
+  .date-fill { display: block; height: 100%; min-height: 30px; }
 
   /* ---------------- grand total strip ---------------- */
   .grand {
@@ -202,8 +213,12 @@
     padding: var(--sp-3); border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: var(--fs-sm);
   }
   .tcard:last-child { border-bottom: none; }
-  .tcard .code { font-weight: 700; color: var(--ink); font-family: var(--sans); font-size: var(--fs-md); }
-  .tcard .code small { display: block; color: var(--dim); font-weight: 500; font-family: var(--sans); font-size: var(--fs-xs); margin-top: 2px; }
+  .tcard .code { min-width: 0; font-weight: 700; color: var(--ink); font-family: var(--mono); font-size: var(--fs-md); }
+  .tcard .code small {
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    color: var(--dim); font-weight: 500; font-family: var(--sans); font-size: var(--fs-xs);
+    margin-top: 3px; line-height: 1.3;
+  }
   .tcard .val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
   .tcard .val .lbl { display: block; color: var(--faint); font-size: var(--fs-2xs); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
   .prop-bar { position: relative; height: 28px; background: var(--panel-alt); border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
@@ -217,27 +232,110 @@
   /* ---------------- mobile: stacked cards, single bar, minimal chrome ---------------- */
   .cards { display: none; }
   .card-group-head {
-    background: var(--panel-alt); padding: var(--sp-3); font-family: var(--sans); font-weight: 700; font-size: var(--fs-lg);
-    color: var(--primary); display: flex; justify-content: space-between; gap: var(--sp-2);
+    position: sticky; top: 0; z-index: 4;
+    background: var(--panel-alt); padding: 7px var(--sp-3); font-family: var(--sans); font-weight: 700; font-size: var(--fs-sm);
+    color: var(--primary); display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
     border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
   }
-  .card-group-head .sub { font-family: var(--sans); font-weight: 500; color: var(--dim); font-size: var(--fs-xs); }
+  .card-group-head > span:first-child {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: .01em;
+  }
+  .card-group-head .sub { flex: 0 0 auto; font-family: var(--sans); font-weight: 600; color: var(--dim); font-size: var(--fs-2xs); }
   .card { border-bottom: 1px solid var(--line); padding: var(--sp-3); }
   .card:last-child { border-bottom: none; }
-  .card-top { display: flex; justify-content: space-between; gap: var(--sp-2); margin-bottom: var(--sp-2); }
-  .card-top .code { font-weight: 700; font-size: var(--fs-md); font-family: var(--sans); }
-  .card-top .name { color: var(--dim); font-weight: 500; font-size: var(--fs-xs); text-align: right; max-width: 55%; }
+  /* code + product name on a SINGLE line: code chip, then name taking the remaining width
+     (ellipsis if it can't fit, so the row never wraps). */
+  .card-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: var(--sp-2); min-width: 0; }
+  .card-top .code {
+    flex: 0 0 auto; font-weight: 700; font-size: var(--fs-sm); font-family: var(--mono);
+    letter-spacing: .02em; color: var(--ink);
+    background: var(--panel-alt); border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px;
+  }
+  .card-top .name {
+    flex: 1 1 auto; min-width: 0; color: var(--dim); font-weight: 600; font-size: var(--fs-sm);
+    font-family: var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .card-grid {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 8px; font-family: var(--mono);
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 10px; font-family: var(--mono);
     font-size: var(--fs-sm); margin-bottom: var(--sp-2);
   }
   .card-grid div { display: flex; flex-direction: column; }
   .card-grid b { font-variant-numeric: tabular-nums; font-size: var(--fs-md); font-weight: 700; color: var(--ink); }
   .card-grid span { color: var(--faint); font-size: var(--fs-2xs); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+
+  /* single inline metrics row: Qty · Supp · Ready · Bal · Days — all five across one line,
+     label above value, tabular numerals. Fills the phone width, no wrapping. */
+  .metric-row {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
+    margin-bottom: var(--sp-2); padding: 8px 0; border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .metric-row > div {
+    display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0;
+  }
+  .metric-row span {
+    color: var(--faint); font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .02em; font-family: var(--sans); margin-bottom: 2px;
+  }
+  .metric-row b {
+    font-family: var(--mono); font-variant-numeric: tabular-nums;
+    font-size: var(--fs-sm); font-weight: 700; color: var(--ink); line-height: 1;
+  }
   .card .prop-bar { height: 26px; margin-top: var(--sp-1); }
   .card .dates { display: flex; justify-content: space-between; font-family: var(--mono); font-size: var(--fs-xs); font-weight: 600; color: var(--dim); margin-top: var(--sp-1); }
 
-  .table-scroll, .cards, .tablet-cards { border-radius: 8px; background: var(--panel); border: 1px solid var(--line); margin-bottom: var(--sp-4); overflow: hidden; }
+  /* extra-compact timeline: [startDate] ——●═════●—— [endDate] on one line */
+  .cbar { display: flex; align-items: center; gap: 7px; }
+  .cbar-lbl {
+    flex: 0 0 auto; font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--dim);
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .cbar-track {
+    position: relative; flex: 1 1 auto; height: 8px; border-radius: 4px;
+    background: var(--panel-alt); border: 1px solid var(--line);
+  }
+  .cbar-fill { position: absolute; top: 0; bottom: 0; border-radius: 4px; opacity: .9; }
+  .cbar-dot {
+    position: absolute; top: 50%; width: 8px; height: 8px; border-radius: 50%;
+    transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--panel); z-index: 2;
+  }
+  .cbar-today { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--today); z-index: 3; }
+  .cbar-empty { font-family: var(--mono); font-size: 10.5px; color: var(--faint); padding: 3px 0; }
+
+  /* mobile day-grid: horizontally scrollable strip, same day columns as desktop */
+  .mgrid {
+    margin-top: var(--sp-1); overflow-x: auto; -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+    scrollbar-width: thin;
+  }
+  .mgrid::-webkit-scrollbar { height: 5px; }
+  .mgrid::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+  .mg-track { display: inline-block; min-width: 100%; }
+  .mg-row { display: flex; }
+  .mg-h, .mg-c { flex: 0 0 30px; width: 30px; box-sizing: border-box; border-left: 1px solid var(--line); }
+  .mg-h:first-child, .mg-c:first-child { border-left: none; }
+  .mg-head {
+    position: sticky; top: 0; background: var(--panel-alt);
+    border-bottom: 1px solid var(--line);
+  }
+  .mg-h {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 4px 0; font-family: var(--mono); line-height: 1.1;
+  }
+  .mg-h .mg-d { font-size: var(--fs-2xs); font-weight: 700; color: var(--dim); }
+  .mg-h .mg-m { font-size: 8px; font-weight: 700; text-transform: uppercase; color: var(--faint); letter-spacing: .02em; }
+  .mg-c { height: 26px; padding: 4px 3px; position: relative; }
+  .mg-fill { position: absolute; inset: 4px 0; display: block; }
+  /* colored day cells butt together into a continuous bar within a job's span */
+  .mg-c .mg-fill { left: -1px; right: -1px; }
+  .mg-today { background: rgba(209,55,74,.12); }
+  .mg-head .mg-today { box-shadow: inset 0 -2px 0 var(--today); }
+  .mg-body .mg-today { box-shadow: inset 2px 0 0 var(--today), inset -2px 0 0 var(--today); }
+
+  /* .table-scroll is deliberately NOT in this list: it needs `overflow: auto` for its sticky
+     date header, and this rule comes later in the cascade, so including it here silently
+     reverted that to hidden and un-stuck the header. */
+  .cards, .tablet-cards { border-radius: 8px; background: var(--panel); border: 1px solid var(--line); margin-bottom: var(--sp-4); overflow: hidden; }
   .tablet-cards { overflow-x: hidden; overflow-y: auto; }
 
   /* --- breakpoints: three distinct renderings, not one shrinking table --- */
@@ -248,7 +346,19 @@
   @media (max-width: 620px) {
     .tablet-cards { display: none; }
     .cards { display: block; }
-    header h1 { display: none; }
+    /* compact, thumb-friendly header: brand + clock drop away, tabs scroll horizontally,
+       filter takes the full second row so search targets are large. */
+    header { padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); align-items: stretch; }
+    header h1, .brand, .clock { display: none; }
+    .tabs {
+      order: 2; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
+      scrollbar-width: none; flex-wrap: nowrap; justify-content: flex-start;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab { flex: 0 0 auto; padding: 9px 16px; font-size: var(--fs-base); }
+    .filter-wrap { order: 1; margin-left: 0; max-width: none; width: 100%; }
+    .filter-wrap input { padding: 11px 12px 11px 34px; font-size: var(--fs-base); }
+    main { padding: var(--sp-2); }
     .tcard { grid-template-columns: 1fr; }
   }
 
@@ -279,6 +389,7 @@
 <script>
 var PALETTE = {1:'var(--m1)',2:'var(--m2)',3:'var(--m3)',4:'var(--m4)',5:'var(--m5)',6:'var(--m6)',7:'var(--m7)'};
 var ROWS = [];
+var GRID_START = null;
 var VIEW = 'po';
 var FILTER = '';
 var TODAY = null;
@@ -331,14 +442,20 @@ var DATE_COLS = [];
 
 function computeDateCols(rows) {
   var withDates = rows.filter(function (r) { return r.start && r.end; });
-  if (!TODAY) TODAY = new Date(new Date().toDateString());
+  // Timeline start = the sheet's own grid start (first date column after Month), sent as
+  // GRID_START. This mirrors the sheet EXACTLY — same day, no timezone drift. Fall back to
+  // IST-today only if the sheet didn't send it.
+  if (!TODAY) {
+    var nowIst = new Date(Date.now() + 5.5 * 3600 * 1000);
+    TODAY = new Date(Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth(), nowIst.getUTCDate()));
+  }
+  var gridStart = GRID_START || TODAY;
   var msDay = 86400000;
-  var minD = TODAY, maxD = new Date(TODAY.getTime() + 14 * msDay);
+  var minD = gridStart, maxD = new Date(gridStart.getTime() + 14 * msDay);
   if (withDates.length) {
-    var starts = withDates.map(function (r) { return new Date(r.start); });
     var ends = withDates.map(function (r) { return new Date(r.end); });
-    minD = new Date(Math.min.apply(null, starts.concat([TODAY])));
-    maxD = new Date(Math.max.apply(null, ends));
+    minD = gridStart;
+    maxD = new Date(Math.max.apply(null, ends.concat([gridStart])));
   }
   var days = Math.max(1, Math.round((maxD - minD) / msDay)) + 1;
   var cols = [];
@@ -379,6 +496,59 @@ function proportionalBar(r) {
   var todayMark = (todayPct >= 0 && todayPct <= 100) ? '<div class="today-mark" style="left:' + todayPct + '%"></div>' : '';
   return '<div class="prop-bar">' + todayMark +
     '<div class="fill" style="left:' + left + '%;width:' + width + '%;background:' + colorFor(r.machine) + '"></div></div>';
+}
+
+// Mobile day-grid: the SAME per-day columns as desktop, but as a horizontally-scrollable strip
+// inside each card — a sticky day-header row above a row of the job's colored day-cells, aligned
+// 1:1 so operators can read exactly which calendar days the job occupies. Auto-scrolls so the
+// job's start day is in view on first paint.
+function mobileGridHtml(r) {
+  if (!DATE_COLS.length) return '';
+  var s = r.start ? new Date(r.start) : null, e = r.end ? new Date(r.end) : null;
+  var color = colorFor(r.machine);
+  var startIdx = -1;
+  var head = '', cells = '';
+  DATE_COLS.forEach(function (d, i) {
+    var isToday = d.getTime() === TODAY.getTime();
+    var active = s && e && d >= s && d < e;
+    if (active && startIdx === -1) startIdx = i;
+    var newMonth = (i === 0) || (d.getDate() === 1);
+    head += '<div class="mg-h' + (isToday ? ' mg-today' : '') + '">' +
+      '<span class="mg-d">' + fmtDay(d) + '</span>' +
+      '<span class="mg-m">' + (newMonth || isToday ? fmtMon(d) : '') + '</span></div>';
+    cells += '<div class="mg-c' + (isToday ? ' mg-today' : '') + '">' +
+      (active ? '<span class="mg-fill" style="background:' + color + '"></span>' : '') + '</div>';
+  });
+  return '<div class="mgrid" data-startidx="' + startIdx + '">' +
+    '<div class="mg-track"><div class="mg-row mg-head">' + head + '</div>' +
+    '<div class="mg-row mg-body">' + cells + '</div></div></div>';
+}
+
+// Extra-compact mobile timeline: a slim bar positioned across the whole date range, with a start
+// dot + end dot and their dates labelled inline. One line, no horizontal scroll.
+function compactBar(r) {
+  if (!r.start || !r.end || !DATE_COLS.length) {
+    return '<div class="cbar-empty">not scheduled</div>';
+  }
+  var rangeStart = DATE_COLS[0].getTime();
+  var totalMs = DATE_COLS[DATE_COLS.length - 1].getTime() - rangeStart + 86400000;
+  function pct(t) { return Math.max(0, Math.min(100, ((t - rangeStart) / totalMs) * 100)); }
+  var s = new Date(r.start), e = new Date(r.end);
+  var left = pct(s.getTime()), right = pct(e.getTime());
+  var width = Math.max(2, right - left);
+  var color = colorFor(r.machine);
+  var todayPct = pct(TODAY.getTime());
+  var todayMark = (todayPct >= 0 && todayPct <= 100)
+    ? '<i class="cbar-today" style="left:' + todayPct + '%"></i>' : '';
+  return '<div class="cbar">' +
+    '<span class="cbar-lbl start">' + fmtDate(s) + '</span>' +
+    '<div class="cbar-track">' + todayMark +
+      '<div class="cbar-fill" style="left:' + left + '%;width:' + width + '%;background:' + color + '"></div>' +
+      '<i class="cbar-dot" style="left:' + left + '%;background:' + color + '"></i>' +
+      '<i class="cbar-dot" style="left:' + right + '%;background:' + color + '"></i>' +
+    '</div>' +
+    '<span class="cbar-lbl end">' + fmtDate(e) + '</span>' +
+  '</div>';
 }
 
 function render() {
@@ -480,19 +650,22 @@ function render() {
       var dates = (r.start && r.end)
         ? '<div class="dates"><span>' + fmtDate(new Date(r.start)) + '</span><span>' + fmtDate(new Date(r.end)) + '</span></div>'
         : '';
+      // In Product view the group header already names the product, so the per-item line shows the
+      // PO number instead of repeating the product name.
+      var topLine = (VIEW === 'product')
+        ? '<span class="code">' + r.po + '</span>'
+        : '<span class="code">' + r.code + '</span><span class="name">' + r.name + '</span>';
       html += '<div class="card">' +
-        '<div class="card-top"><span class="code">' + r.code + '</span><span class="name">' + r.name + '</span></div>' +
-        '<div class="card-grid">' +
+        '<div class="card-top">' + topLine + '</div>' +
+        '<div class="metric-row">' +
         '<div><span>Qty</span><b>' + fmtNum(r.orderQty) + '</b></div>' +
-        '<div><span>Supplied</span><b>' + fmtNum(r.supplied) + '</b></div>' +
+        '<div><span>Supp</span><b>' + fmtNum(r.supplied) + '</b></div>' +
         '<div><span>Ready</span><b>' + fmtNum(r.readyStock) + '</b></div>' +
-        '<div><span>Balance</span><b>' + fmtNum(r.balance) + '</b></div>' +
+        '<div><span>Bal</span><b>' + fmtNum(r.balance) + '</b></div>' +
         '<div><span>Days</span><b>' + (r.days || '—') + '</b></div>' +
         extraCard +
-        '</div>' + proportionalBar(r) + dates + '</div>';
+        '</div>' + compactBar(r) + '</div>';
     });
-    html += '<div class="card" style="font-weight:700;display:flex;justify-content:space-between;font-family:var(--mono);font-size:var(--fs-sm);background:var(--panel-alt)">' +
-      '<span>Subtotal</span><span>' + fmtNum(sub.orderQty) + ' / ' + fmtNum(sub.supplied) + ' / ' + fmtNum(sub.readyStock) + ' / ' + fmtNum(sub.balance) + '</span></div>';
   });
   html += '</div>';
 
@@ -508,6 +681,12 @@ function render() {
     '</div>';
 
   document.getElementById('main').innerHTML = html;
+
+  // Scroll each mobile day-grid so the job's start day is in view (30px per day column).
+  document.querySelectorAll('.mgrid').forEach(function (g) {
+    var idx = parseInt(g.getAttribute('data-startidx'), 10);
+    if (idx > 1) g.scrollLeft = (idx - 1) * 30;
+  });
 }
 
 document.querySelectorAll('.tab').forEach(function (btn) {
@@ -541,6 +720,7 @@ fetch('/api/data')
   .then(function (data) {
     if (data && data.error) throw new Error(data.error);
     ROWS = (data && data.rows) || [];
+    GRID_START = (data && data.gridStart) ? new Date(data.gridStart) : null;
     render();
   })
   .catch(function (err) {
