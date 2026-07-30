@@ -417,6 +417,10 @@
     header h1 { display: none; }
     .brand { order: 0; }
     .brand .wordmark { font-size: var(--fs-sm); }
+    /* Header row is crowded on a phone: keep the tap target, drop the label to the icon.
+       aria-label carries the name for anyone who cannot see the glyph. */
+    .counter-link { order: 0; margin-left: auto; padding: 0 12px; gap: 0; font-size: var(--fs-base); }
+    .counter-link .lbl { display: none; }
     .tabs {
       order: 2; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
       scrollbar-width: none; flex-wrap: nowrap; justify-content: flex-start;
@@ -442,6 +446,19 @@
     text-decoration: underline; text-underline-offset: 2px; border-radius: 6px;
   }
   .linkish:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+  /* Secondary to the tabs — this leaves the board, so it should not compete with the
+     controls that operate it. 44px tall for the same reason the tabs are. */
+  .counter-link {
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    min-height: 44px; padding: 0 14px; border-radius: 6px;
+    border: 1px solid var(--line); background: var(--panel);
+    font-family: var(--sans); font-size: var(--fs-sm); font-weight: 600;
+    color: var(--dim); text-decoration: none;
+    transition: color .12s, border-color .12s;
+  }
+  .counter-link:hover { color: var(--primary); border-color: var(--primary); }
+  .counter-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
   .jump-today {
     margin-left: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
@@ -482,6 +499,14 @@
     <input type="text" id="filterInput" placeholder="filter code, name or PO…">
     <button type="button" class="clear-x" id="filterClear" aria-label="Clear filter">✕</button>
   </div>
+  <!-- Counter Entry lives on its own GitHub Pages wrapper; operators normally arrive by
+       scanning a per-machine QR, so this is the way in when a sticker is missing or when
+       you are already looking at the board. New tab: the dashboard auto-refreshes and is
+       often left open on the wall tablet — navigating away from it would be a loss. -->
+  <a class="counter-link" href="https://plasticypp.github.io/counter/" target="_blank"
+     rel="noopener" aria-label="Open Counter Entry in a new tab">
+    <span aria-hidden="true">⊞</span><span class="lbl">Counter Entry</span>
+  </a>
   <!-- Freshness, not decoration: the dot reflects measured age and is always paired with
        the text stamp, never carrying the meaning on its own. -->
   <div class="clock" id="clock" title="Time of the last successful update">
