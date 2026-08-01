@@ -42,9 +42,11 @@ function json(obj, status = 200) {
     status,
     headers: {
       'content-type': 'application/json',
-      // Short cache: dashboard data changes as Dispatch is edited, but this avoids hammering
-      // Apps Script on rapid refreshes/tab-switches.
-      'cache-control': 'private, max-age=10',
+      // 30s: long enough that several people opening the board at once, or one person
+      // switching tabs repeatedly, collapse into a single Apps Script call — short enough
+      // that it never holds data back past the client's own 2-minute poll. Apps Script is
+      // the slow, rate-limited leg of this chain, so requests are the thing worth saving.
+      'cache-control': 'private, max-age=30',
     },
   });
 }

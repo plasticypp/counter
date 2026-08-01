@@ -142,9 +142,14 @@
      which is the only time value that can mislead someone into running the wrong job. */
   .clock {
     font-family: var(--mono); font-size: var(--fs-xs); color: var(--dim);
-    white-space: nowrap; font-variant-numeric: tabular-nums; padding-left: var(--sp-1);
+    white-space: nowrap; font-variant-numeric: tabular-nums;
     display: flex; align-items: center; gap: 6px;
+    /* A button, because polling pauses when idle and this is how you resume it. */
+    background: none; border: 1px solid transparent; border-radius: 6px;
+    padding: 6px 8px; min-height: 36px; cursor: pointer;
   }
+  .clock:hover { border-color: var(--line); color: var(--ink); }
+  .clock:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .clock b { color: var(--ink); font-weight: 700; }
   .clock .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; background: var(--dim); }
   /* Three states, each also carried by the adjacent text — never colour alone. */
@@ -514,9 +519,9 @@
   </a>
   <!-- Freshness, not decoration: the dot reflects measured age and is always paired with
        the text stamp, never carrying the meaning on its own. -->
-  <div class="clock" id="clock" title="Time of the last successful update">
+  <button type="button" class="clock" id="clock" title="Refresh now">
     <span class="dot" id="freshDot"></span><span id="freshText">loading…</span>
-  </div>
+  </button>
 </header>
 
 <main id="main" aria-live="polite" aria-busy="true">
@@ -579,14 +584,21 @@ function paintFreshness() {
   if (!LAST_OK) return;
   var mins = Math.floor((Date.now() - LAST_OK.getTime()) / 60000);
   var stamp = LAST_OK.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  // Paused is a different fact from stale, and the user can act on it: say so plainly and
+  // name the gesture that resumes. Silently freezing would be the same lie as the old
+  // pulsing "live" dot over data that never refreshed.
+  var paused = (typeof pollingWanted === 'function') && !pollingWanted() && !document.hidden;
   var label;
-  if (mins < 1) label = 'Updated just now';
+  if (paused) label = 'Paused at ' + stamp + ' — click to refresh';
+  else if (mins < 1) label = 'Updated just now';
   else if (mins < 60) label = 'Updated ' + mins + ' min ago';
   else label = 'Updated ' + stamp + ' — may be out of date';
-  text.innerHTML = mins >= 60 ? esc(label) : esc(label) + ' &nbsp;<b>' + esc(stamp) + '</b>';
-  box.classList.toggle('is-fresh', mins < 5);
-  box.classList.toggle('is-aging', mins >= 5 && mins < 30);
-  box.classList.toggle('is-stale', mins >= 30);
+  text.innerHTML = (paused || mins >= 60)
+    ? esc(label)
+    : esc(label) + ' &nbsp;<b>' + esc(stamp) + '</b>';
+  box.classList.toggle('is-fresh', !paused && mins < 5);
+  box.classList.toggle('is-aging', !paused && mins >= 5 && mins < 30);
+  box.classList.toggle('is-stale', paused || mins >= 30);
 }
 
 function applyFilter(rows) {
@@ -952,12 +964,21 @@ function showLoadError(err) {
       '<div class="empty">Couldn\'t reach the schedule.'
       + ' <button type="button" class="linkish" id="retryBtn">Try again</button></div>';
     var rb = document.getElementById('retryBtn');
-    if (rb) rb.addEventListener('click', function () { load(); });
+    if (rb) rb.addEventListener('click', function () { load(true); });
   }
 }
 
-function load() {
-  return fetch('/api/data', { cache: 'no-store' })
+var loadInFlight = false;
+
+/* `force` distinguishes a person asking from a timer asking. A scheduled poll is happy with
+   the worker's 30s cached response — that is the whole point of the cache. Someone clicking
+   "refresh" is explicitly saying the cache is not good enough, so that one bypasses it. */
+function load(force) {
+  // A manual click landing on top of a scheduled tick would double the request cost for one
+  // result; the second caller just rides along with the first.
+  if (loadInFlight) return Promise.resolve();
+  loadInFlight = true;
+  return fetch('/api/data' + (force ? '?t=' + Date.now() : ''), force ? { cache: 'no-store' } : {})
     .then(function (r) {
       // Without an ok check, a 500 returning valid JSON fell through to an empty board that
       // read as "no jobs scheduled" rather than as a failure.
@@ -972,20 +993,94 @@ function load() {
       render();
       paintFreshness();
     })
-    .catch(showLoadError);
+    .catch(showLoadError)
+    .then(function () { loadInFlight = false; });
 }
 
 window.addEventListener('resize', measureFrozenOffset);
 
-load();
-// Refresh on a timer AND whenever the tab is looked at again: the wall-mounted tablet is
-// never touched, and the phone in a pocket comes back to foreground hours later.
-setInterval(load, 60000);
-document.addEventListener('visibilitychange', function () {
-  if (document.visibilityState === 'visible') load();
+/* ---------------------------------------------------------------------------
+   Polling policy.
+
+   A fixed 60s timer meant a wall tablet left open all shift made ~480 Apps
+   Script calls a day for a schedule that changes a handful of times — and it
+   kept polling while the tab sat in the background, where nobody could see the
+   result. Requests are the expensive thing here (Apps Script is slow and rate
+   limited), so the page now only fetches when someone is actually looking:
+
+     - hidden tab            -> no polling at all
+     - visible but untouched -> polls until IDLE_AFTER, then stops
+     - returning to the tab  -> one immediate fetch, timer restarts
+     - interacting again     -> idle clock resets
+
+   The freshness stamp keeps the whole thing honest: when polling has stopped,
+   the header says so rather than implying the numbers are current.
+   --------------------------------------------------------------------------- */
+var POLL_EVERY = 120000;   // 2 min between fetches while watched — the sheet is edited
+                           // a few times a day, so this is already generous.
+var IDLE_AFTER = 300000;   // 5 min without interaction and we stop entirely. A wall
+                           // display is "idle" by nature, so the visibility check is what
+                           // protects it; this covers a forgotten desktop tab.
+var pollTimer = null;
+var lastInteraction = Date.now();
+
+function pollingWanted() {
+  return document.visibilityState === 'visible'
+    && (Date.now() - lastInteraction) < IDLE_AFTER;
+}
+
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+function startPolling() {
+  if (pollTimer) return;
+  pollTimer = setInterval(function () {
+    if (!pollingWanted()) { stopPolling(); paintFreshness(); return; }
+    load();
+  }, POLL_EVERY);
+}
+
+/* Any sign of a human resets the idle clock. If polling had stopped and the data has
+   gone stale meanwhile, fetch immediately rather than making them wait for the tick. */
+function noteInteraction() {
+  var wasIdle = !pollingWanted();
+  lastInteraction = Date.now();
+  if (wasIdle) {
+    if (!LAST_OK || (Date.now() - LAST_OK.getTime()) > POLL_EVERY) load();
+    startPolling();
+    paintFreshness();
+  }
+}
+['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (evt) {
+  document.addEventListener(evt, noteInteraction, { passive: true });
 });
-// Re-render the stamp between fetches so "3 min ago" keeps counting up honestly.
-setInterval(paintFreshness, 30000);
+
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'visible') {
+    // Coming back to the tab is itself an interaction: refresh now, resume polling.
+    lastInteraction = Date.now();
+    load();
+    startPolling();
+  } else {
+    stopPolling();
+  }
+});
+
+// Clicking the stamp is both a manual refresh and an interaction, so it resumes polling.
+document.getElementById('clock').addEventListener('click', function () {
+  lastInteraction = Date.now();
+  load(true);
+  startPolling();
+});
+
+load();
+startPolling();
+// Re-render the stamp between fetches so "3 min ago" keeps counting up honestly. This is a
+// local DOM update, not a request, so it is cheap — but it also stops while hidden.
+setInterval(function () {
+  if (document.visibilityState === 'visible') paintFreshness();
+}, 30000);
 </script>
 
 </body>
