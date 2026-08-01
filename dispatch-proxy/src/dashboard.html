@@ -457,6 +457,11 @@
     color: var(--dim); text-decoration: none;
     transition: color .12s, border-color .12s;
   }
+  /* Over-supplied. These rows used to be filtered out of the payload entirely, so the board
+     disagreed with the sheet and gave no hint why. They belong on the board — flagged, since
+     a negative balance is a state someone has to act on. */
+  .is-neg { color: var(--today); font-weight: 800; }
+
   .counter-link:hover { color: var(--primary); border-color: var(--primary); }
   .counter-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
@@ -781,7 +786,7 @@ function render() {
       html += '<tr><td class="data-col">' + esc(r.code) + '</td><td class="data-col">' + esc(r.name) + '</td>' +
         '<td class="num">' + fmtNum(r.orderQty) + '</td><td class="num">' + fmtNum(r.supplied) + '</td>' +
         '<td class="num">' + fmtNum(r.readyStock) + '</td>' +
-        '<td class="num">' + fmtNum(r.balance) + '</td>' + extraTd +
+        '<td class="num' + (Number(r.balance) < 0 ? ' is-neg' : '') + '">' + fmtNum(r.balance) + '</td>' + extraTd +
         '<td class="num">' + esc(r.days || '—') + '</td>' + dateCellsHtml(r) + '</tr>';
     });
     var extraTf = showRmMb ? '<td class="num">' + fmtNum(sub.rmReq) + '</td><td class="num">' + fmtNum(sub.mb) + '</td>' : '';
@@ -805,7 +810,7 @@ function render() {
         '<span class="val"><span class="lbl">Qty</span>' + fmtNum(r.orderQty) + '</span>' +
         '<span class="val"><span class="lbl">Supplied</span>' + fmtNum(r.supplied) + '</span>' +
         '<span class="val"><span class="lbl">Ready</span>' + fmtNum(r.readyStock) + '</span>' +
-        '<span class="val"><span class="lbl">Balance</span>' + fmtNum(r.balance) + '</span>' +
+        '<span class="val' + (Number(r.balance) < 0 ? ' is-neg' : '') + '"><span class="lbl">Balance</span>' + fmtNum(r.balance) + '</span>' +
         '<span class="val"><span class="lbl">Days</span>' + esc(r.days || '—') + '</span>' +
         proportionalBar(r) +
         '</div>';
@@ -839,7 +844,7 @@ function render() {
         '<div><span>Qty</span><b>' + fmtNum(r.orderQty) + '</b></div>' +
         '<div><span>Supplied</span><b>' + fmtNum(r.supplied) + '</b></div>' +
         '<div><span>Ready</span><b>' + fmtNum(r.readyStock) + '</b></div>' +
-        '<div><span>Balance</span><b>' + fmtNum(r.balance) + '</b></div>' +
+        '<div><span>Balance</span><b' + (Number(r.balance) < 0 ? ' class="is-neg"' : '') + '>' + fmtNum(r.balance) + '</b></div>' +
         '<div><span>Days</span><b>' + esc(r.days || '—') + '</b></div>' +
         extraCard +
         '</div>' + compactBar(r) + '</div>';

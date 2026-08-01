@@ -980,7 +980,16 @@ function getDashboardData_(ss) {
   mastersDD.slice(1).forEach(function (r) { if (r[1]) nameByCodeDD[r[1]] = r[2]; });
 
   var rowsDD = lastRowDD >= 2 ? dispatchDD.getRange(2, 1, lastRowDD - 1, lastColDD).getValues() : [];
-  var out = rowsDD.filter(function (r) { return r[idxDD.code] && Number(r[idxDD.balance]) >= 0; })
+  // Keep every row that has a product Code. The old rule also required
+  // `Number(balance) >= 0`, which dropped rows from the board for two different reasons and
+  // gave no sign either had happened:
+  //   1. A real negative balance — an over-supplied job. That is a genuine state the planner
+  //      needs to SEE, not a row to hide.
+  //   2. A Balance cell that is not yet a number. Balance is a formula (=Qty-Supplied-Ready),
+  //      so mid-recalculation, or whenever an input is blank or text, it reads as NaN — and
+  //      `NaN >= 0` is false. Editing the sheet made rows silently vanish from the dashboard
+  //      instead of updating.
+  var out = rowsDD.filter(function (r) { return r[idxDD.code]; })
     .map(function (r) {
       var startV = r[idxDD.start], endV = r[idxDD.end];
       return {
@@ -995,7 +1004,36 @@ function getDashboardData_(ss) {
         end: endV instanceof Date ? endV.toISOString() : null,
       };
     });
-  return { rows: out };
+
+  // gridStart anchors the dashboard's day columns to the SHEET's own Gantt grid, so both
+  // surfaces show the same calendar days; without it the client falls back to IST-today and
+  // the two drift apart.
+  //
+  // The day headers are TEXT like "31/Jul", not Date cells, so they have to be parsed rather
+  // than read — and the year is absent, which matters across a December/January boundary:
+  // pick the year that puts the column nearest today. Anchor on the first one AFTER 'Month',
+  // since the schedule block (Output/Day..Days) also sits left of the grid.
+  var gridStartDD = null;
+  var monthColDD = headersDD.indexOf('Month');
+  var MONTHS_DD = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  for (var iDD = (monthColDD === -1 ? 0 : monthColDD + 1); iDD < headersDD.length; iDD++) {
+    var mDD = String(headersDD[iDD]).trim().match(/^(\d{1,2})[\/\- ]([A-Za-z]{3})/);
+    if (!mDD) continue;
+    var monIdxDD = MONTHS_DD.indexOf(mDD[2].toLowerCase());
+    if (monIdxDD === -1) continue;
+    var nowDD = new Date();
+    var bestDD = null;
+    [nowDD.getFullYear() - 1, nowDD.getFullYear(), nowDD.getFullYear() + 1].forEach(function (yDD) {
+      var candDD = new Date(yDD, monIdxDD, Number(mDD[1]));
+      if (!bestDD || Math.abs(candDD - nowDD) < Math.abs(bestDD - nowDD)) bestDD = candDD;
+    });
+    gridStartDD = bestDD;
+    break;
+  }
+  return {
+    rows: out,
+    gridStart: gridStartDD ? gridStartDD.toISOString() : null,
+  };
 }
 
 function printSpecForActiveInvoiceColumn() {
