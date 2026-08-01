@@ -989,7 +989,16 @@ function getDashboardData_(ss) {
   //      so mid-recalculation, or whenever an input is blank or text, it reads as NaN — and
   //      `NaN >= 0` is false. Editing the sheet made rows silently vanish from the dashboard
   //      instead of updating.
-  var out = rowsDD.filter(function (r) { return r[idxDD.code]; })
+  // A row with no Machine AND no Priority has not been planned yet — the scheduler skips it,
+  // it has no start date, and it cannot appear on a timeline. It is a PO line sitting in the
+  // sheet waiting to be assigned, so it is not part of the dispatch picture. Rows missing
+  // only ONE of the two are still shown: that is a half-finished assignment the planner
+  // should see rather than lose.
+  var blankDD = function (v) { return v === '' || v === null || v === undefined || String(v).trim() === ''; };
+  var out = rowsDD.filter(function (r) {
+    if (!r[idxDD.code]) return false;
+    return !(blankDD(r[idxDD.machine]) && blankDD(r[idxDD.priority]));
+  })
     .map(function (r) {
       var startV = r[idxDD.start], endV = r[idxDD.end];
       return {
