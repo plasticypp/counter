@@ -20,15 +20,16 @@ function getSpreadsheet_() {
 }
 
 function onOpen() {
+  // Only the actions used day to day. The one-time setup routines (code dropdown, operators
+  // sheet, trigger install) are still defined below and runnable from the script editor —
+  // they are off the menu because they have already been run, and an accidental re-run is
+  // the kind of mistake that is tedious to undo.
   SpreadsheetApp.getUi()
     .createMenu('Dispatch Tools')
+    .addItem('Import PO from PDF…', 'showPoImportDialog')
     .addItem('Print Spec for Selected Invoice Column', 'printSpecForActiveInvoiceColumn')
-    .addItem('Set Up Code Dropdown (Column F)', 'setUpCodeDropdown')
     .addSeparator()
-    .addItem('Set Up Operators Sheet', 'setUpOperatorsSheet')
-    .addItem('Import PO AMB/26-27/PAC/00415', 'importPendingPurchaseOrder')
     .addItem('Rebuild Schedule Now', 'rebuildScheduleNow')
-    .addItem('Install Auto-Rebuild Trigger', 'installOnEditTrigger')
     .addToUi();
 }
 

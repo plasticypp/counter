@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<style>
+  :root {
+    --ink: #16181d; --dim: #5b6270; --line: #dde2ea; --panel: #fff; --panel-alt: #f2f4f8;
+    --primary: #1e40af; --ok: #157a4a; --warn: #b5650f; --bad: #d1374a;
+    --mono: "Roboto Mono", ui-monospace, Consolas, monospace;
+    --sans: Roboto, -apple-system, "Segoe UI", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--sans); font-size: 13px; color: var(--ink); padding: 16px; }
+
+  .drop {
+    border: 2px dashed var(--line); border-radius: 10px; padding: 34px 20px; text-align: center;
+    background: var(--panel-alt); cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .drop:hover, .drop.over { border-color: var(--primary); background: #eef2ff; }
+  .drop h2 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .drop p { color: var(--dim); font-size: 12px; }
+  #file { display: none; }
+
+  .step { display: none; }
+  .step.on { display: block; }
+
+  .busy { text-align: center; padding: 40px 20px; color: var(--dim); }
+  .spin {
+    width: 26px; height: 26px; margin: 0 auto 14px; border-radius: 50%;
+    border: 3px solid var(--line); border-top-color: var(--primary);
+    animation: sp .8s linear infinite;
+  }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .busy .what { font-weight: 600; color: var(--ink); margin-bottom: 3px; }
+
+  .head { display: flex; gap: 22px; flex-wrap: wrap; padding: 10px 12px; background: var(--panel-alt);
+          border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px; }
+  .head div { font-size: 12px; }
+  .head span { display: block; color: var(--dim); font-size: 10px; text-transform: uppercase;
+               letter-spacing: .05em; margin-bottom: 2px; }
+  .head b { font-family: var(--mono); font-weight: 700; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: right; padding: 7px 8px; border-bottom: 2px solid var(--line);
+       font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--dim); }
+  th:nth-child(1), th:nth-child(2), th:nth-child(3) { text-align: left; }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: right;
+       font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  td:nth-child(1), td:nth-child(2), td:nth-child(3) { text-align: left; }
+  tr.off td { opacity: .38; text-decoration: line-through; }
+  .derived { color: var(--warn); }
+  .totals td { font-weight: 700; border-top: 2px solid var(--line); border-bottom: none; }
+  .printed td { color: var(--dim); font-weight: 400; border-bottom: none; padding-top: 2px; }
+
+  .note { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 12px; line-height: 1.45; }
+  .note.ok   { background: #eaf6ef; border: 1px solid #b9dcc7; color: #12603b; }
+  .note.warn { background: #fdf3e3; border: 1px solid #e8cf9f; color: #7a4708; }
+  .note.bad  { background: #fdecee; border: 1px solid #f0bcc3; color: #96202f; }
+  .note ul { margin: 5px 0 0 18px; }
+
+  .foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;
+          padding-top: 14px; border-top: 1px solid var(--line); }
+  button { font-family: var(--sans); font-size: 13px; font-weight: 600; padding: 9px 18px;
+           border-radius: 6px; border: 1px solid var(--line); background: var(--panel);
+           color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<!-- 1. choose a file -->
+<div class="step on" id="step-pick">
+  <div class="drop" id="drop">
+    <h2>Drop the PO PDF here</h2>
+    <p>or click to browse</p>
+  </div>
+  <input type="file" id="file" accept="application/pdf">
+  <div class="note warn" style="margin-top:14px">
+    The PDF is sent to your own Google Drive to be read, then deleted. Nothing is written to
+    the sheet until you review the lines and approve them.
+  </div>
+</div>
+
+<!-- 2. working -->
+<div class="step" id="step-busy">
+  <div class="busy">
+    <div class="spin"></div>
+    <div class="what" id="busy-what">Reading the PDF…</div>
+    <div id="busy-detail">This usually takes 15–30 seconds.</div>
+  </div>
+</div>
+
+<!-- 3. review -->
+<div class="step" id="step-review">
+  <div class="head" id="rv-head"></div>
+  <table id="rv-table"></table>
+  <div id="rv-notes"></div>
+  <div class="foot">
+    <button onclick="reset()">Back</button>
+    <button class="primary" id="btn-import" onclick="commit()">Import</button>
+  </div>
+</div>
+
+<!-- 4. done -->
+<div class="step" id="step-done">
+  <div id="done-body"></div>
+  <div class="foot"><button class="primary" onclick="google.script.host.close()">Close</button></div>
+</div>
+
+<script>
+var PARSED = null;
+
+function show(id) {
+  ['step-pick','step-busy','step-review','step-done'].forEach(function (s) {
+    document.getElementById(s).classList.toggle('on', s === id);
+  });
+}
+function reset() { PARSED = null; document.getElementById('file').value = ''; show('step-pick'); }
+function num(n, dp) {
+  if (n === null || n === undefined) return '—';
+  return Number(n).toLocaleString('en-IN', { minimumFractionDigits: dp || 0, maximumFractionDigits: dp || 0 });
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+var drop = document.getElementById('drop');
+var fileInput = document.getElementById('file');
+drop.addEventListener('click', function () { fileInput.click(); });
+['dragenter','dragover'].forEach(function (e) {
+  drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add('over'); });
+});
+['dragleave','drop'].forEach(function (e) {
+  drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.remove('over'); });
+});
+drop.addEventListener('drop', function (ev) {
+  if (ev.dataTransfer.files.length) handle(ev.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', function () {
+  if (fileInput.files.length) handle(fileInput.files[0]);
+});
+
+function handle(file) {
+  if (!/\.pdf$/i.test(file.name)) { alert('Please choose a PDF.'); return; }
+  show('step-busy');
+  document.getElementById('busy-what').textContent = 'Reading ' + file.name;
+
+  var reader = new FileReader();
+  reader.onload = function () {
+    var b64 = reader.result.split(',')[1];
+    google.script.run
+      .withSuccessHandler(onExtracted)
+      .withFailureHandler(function (err) {
+        show('step-pick');
+        alert('Could not read the PDF:\n\n' + err.message);
+      })
+      .poImportExtract(b64, file.name);
+  };
+  reader.readAsDataURL(file);
+}
+
+function onExtracted(res) {
+  if (!res || !res.ok) {
+    show('step-pick');
+    alert('Could not extract the line items.\n\n' + ((res && res.error) || 'Unknown error'));
+    return;
+  }
+  PARSED = res;
+  renderReview(res);
+  show('step-review');
+}
+
+function renderReview(r) {
+  document.getElementById('rv-head').innerHTML =
+    '<div><span>PO Number</span><b>' + esc(r.poNumber || '—') + '</b></div>' +
+    '<div><span>Date</span><b>' + esc(r.poDate || '—') + '</b></div>' +
+    '<div><span>Indent</span><b>' + esc(r.indent || '—') + '</b></div>' +
+    '<div><span>Lines</span><b>' + r.lines.length + '</b></div>';
+
+  var rows = '<tr><th></th><th>Sr</th><th>Item Code</th><th>Qty</th><th>Rate</th><th>Amount</th></tr>';
+  r.lines.forEach(function (l, i) {
+    rows += '<tr id="row' + i + '">' +
+      '<td><input type="checkbox" checked onchange="toggle(' + i + ',this.checked)"></td>' +
+      '<td>' + l.sr + '</td>' +
+      '<td>' + esc(l.code) + '</td>' +
+      '<td>' + num(l.qty) + '</td>' +
+      '<td class="' + (l.rateSource === 'derived' ? 'derived' : '') + '">' + num(l.rate, 2) + '</td>' +
+      '<td>' + num(l.amount) + '</td></tr>';
+  });
+  rows += '<tr class="totals"><td colspan="3">Total</td><td>' + num(r.check.sumQty) +
+          '</td><td></td><td>' + num(r.check.sumAmt) + '</td></tr>';
+  if (r.printed.qty !== null || r.printed.amount !== null) {
+    rows += '<tr class="printed"><td colspan="3">printed on the PO</td><td>' + num(r.printed.qty) +
+            '</td><td></td><td>' + num(r.printed.amount) + '</td></tr>';
+  }
+  document.getElementById('rv-table').innerHTML = rows;
+
+  var notes = '';
+  if (r.duplicate) {
+    notes += '<div class="note bad"><b>This PO is already in Dispatch.</b> Importing again ' +
+             'would double every quantity on the board.</div>';
+  }
+  if (r.check.pass) {
+    notes += '<div class="note ok"><b>Figures verified.</b> Every line satisfies qty × rate = ' +
+             'amount, and the columns match the totals printed on the PO.</div>';
+  } else {
+    notes += '<div class="note bad"><b>The figures do not add up.</b> Check these against the ' +
+             'PDF before importing:<ul>' +
+             r.check.problems.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') +
+             '</ul></div>';
+  }
+  if (r.check.warnings.length) {
+    notes += '<div class="note warn">' +
+             r.check.warnings.map(function (w) { return esc(w); }).join('<br>') + '</div>';
+  }
+  if (r.masters.missing.length) {
+    notes += '<div class="note warn"><b>Not in Masters:</b> ' + esc(r.masters.missing.join(', ')) +
+             '. These import with Shape, Pack Size, Colour and Gms blank, and will schedule at ' +
+             'the 4000/day fallback until you fill them in.</div>';
+  }
+  document.getElementById('rv-notes').innerHTML = notes;
+
+  document.getElementById('btn-import').disabled = !!r.duplicate;
+}
+
+function toggle(i, on) {
+  document.getElementById('row' + i).classList.toggle('off', !on);
+  PARSED.lines[i]._skip = !on;
+}
+
+function commit() {
+  var keep = PARSED.lines.filter(function (l) { return !l._skip; });
+  if (!keep.length) { alert('No lines selected.'); return; }
+
+  document.getElementById('btn-import').disabled = true;
+  show('step-busy');
+  document.getElementById('busy-what').textContent = 'Writing ' + keep.length + ' rows to Dispatch…';
+  document.getElementById('busy-detail').textContent = '';
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      var body = res.ok
+        ? '<div class="note ok"><b>Imported ' + res.rows + ' rows</b> at rows ' + res.firstRow +
+          '–' + res.lastRow + '.<br><br>Machine, Priority and Month still need filling in by ' +
+          'hand. The rows are not scheduled until Machine is set — then run Rebuild Schedule Now.</div>'
+        : '<div class="note bad">' + esc(res.error) + '</div>';
+      document.getElementById('done-body').innerHTML = body;
+      show('step-done');
+    })
+    .withFailureHandler(function (err) {
+      document.getElementById('done-body').innerHTML =
+        '<div class="note bad"><b>Import failed.</b><br>' + esc(err.message) + '</div>';
+      show('step-done');
+    })
+    .poImportCommit({ poNumber: PARSED.poNumber, poDate: PARSED.poDate, lines: keep });
+}
+</script>
+</body>
+</html>
