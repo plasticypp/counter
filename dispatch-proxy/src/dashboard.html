@@ -333,23 +333,31 @@
      a long name ~200px on a 360px phone and cropped it to "ARZOL 900 ML/1 LTR G…". The
      product name is how the manager identifies the job — it is the one string on the card
      that must never be guessed at, so it gets the full card width. */
-  .card-top { margin-bottom: var(--sp-2); min-width: 0; }
+  /* One line: code chip, machine chip, then the name taking whatever width is left.
+     The name previously sat on its own two-line block below the chips, which spent a whole
+     row of a phone card on it and left the chips floating in mostly empty space. */
+  .card-top {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: var(--sp-2); min-width: 0;
+  }
   .card-top .code {
-    display: inline-block; font-weight: 700; font-size: var(--fs-xs); font-family: var(--mono);
+    flex: 0 0 auto; font-weight: 700; font-size: var(--fs-xs); font-family: var(--mono);
     letter-spacing: .02em; color: var(--ink);
-    background: var(--panel-alt); border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px;
+    background: var(--panel-alt); border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px;
   }
   .card-top .name {
-    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
-    overflow: hidden; margin-top: 5px;
-    color: var(--ink); font-weight: 600; font-size: var(--fs-sm);
+    /* min-width:0 is what lets a flex item shrink below its content width — without it the
+       long ARZOL names force the row wider than the card and push the chips off. */
+    flex: 1 1 auto; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    color: var(--ink); font-weight: 600; font-size: var(--fs-xs);
     font-family: var(--sans); line-height: 1.3;
   }
   /* Machine identity as text, not hue alone — the bar colour below is decoration, this is
      the fact. Mirrors the desktop bar label. */
   .card-top .mch {
-    display: inline-block; margin-left: 6px; font-family: var(--mono); font-size: var(--fs-2xs);
-    font-weight: 700; color: #fff; border-radius: 5px; padding: 3px 7px; letter-spacing: .02em;
+    flex: 0 0 auto; font-family: var(--mono); font-size: var(--fs-2xs);
+    font-weight: 700; color: #fff; border-radius: 5px; padding: 3px 6px; letter-spacing: .02em;
   }
   /* Metrics grid. Column count is NOT hardcoded: the row carries 5 metrics normally and 7 in
      Color view (RM Req + MB), and a fixed `repeat(5, 1fr)` pushed those two extras onto a
