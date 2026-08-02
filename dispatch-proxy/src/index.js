@@ -14,7 +14,13 @@ export default {
     }
 
     return new Response(DASHBOARD_HTML, {
-      headers: { 'content-type': 'text/html; charset=utf-8' },
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+        // Always revalidate. The page carries its own JS, so a cached copy keeps running
+        // old code after a deploy — which has repeatedly looked like a broken dashboard
+        // rather than a stale one. It is a single small document; the round trip is cheap.
+        'cache-control': 'no-cache, must-revalidate',
+      },
     });
   },
 };

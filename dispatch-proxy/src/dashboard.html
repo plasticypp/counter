@@ -537,7 +537,8 @@ var FILTER = '';
 var TODAY = null;
 var MACHINES_SEEN = [];
 
-var LAST_OK = null;   // Date of the last successful fetch — the freshness stamp's source.
+var LAST_OK = null;      // Date of the last successful fetch — the freshness stamp's source.
+var LAST_ERROR = '';     // Why the last attempt failed, so the message can name the cause.
 
 function colorFor(machine) { return PALETTE[machine] || 'var(--mx)'; }
 function fmtNum(n) { var v = Number(n); return isFinite(v) ? Math.round(v).toLocaleString('en-IN') : '—'; }
@@ -970,14 +971,22 @@ function showLoadError(err) {
   // "GAS_URL secret not configured" onto a page with no authentication. If we already have
   // data on screen, keep it — a failed refresh should not blank a working board.
   console.error('dispatch load failed:', err);
+  LAST_ERROR = err && err.message ? err.message : String(err);
   var box = document.getElementById('clock');
   var text = document.getElementById('freshText');
   box.classList.remove('is-fresh', 'is-aging');
   box.classList.add('is-stale');
   text.textContent = LAST_OK ? 'Update failed — showing older data' : 'Could not load';
   if (!ROWS.length) {
+    // Name the actual failure. "Couldn't reach the schedule" was shown for every cause —
+    // including a page left open long enough to be running stale code — which sent people
+    // looking for a network problem that did not exist.
+    var hint = /timed out/i.test(LAST_ERROR)
+      ? 'The schedule server took too long to answer. It is usually slow rather than down.'
+      : 'Could not load the schedule. If this persists, reload the page with Ctrl+Shift+R — '
+        + 'the browser may be holding an old copy.';
     document.getElementById('main').innerHTML =
-      '<div class="empty">Couldn\'t reach the schedule.'
+      '<div class="empty">' + hint
       + ' <button type="button" class="linkish" id="retryBtn">Try again</button></div>';
     var rb = document.getElementById('retryBtn');
     if (rb) rb.addEventListener('click', function () { load(true); });
@@ -994,8 +1003,19 @@ function load(force) {
   // result; the second caller just rides along with the first.
   if (loadInFlight) return Promise.resolve();
   loadInFlight = true;
-  return fetch('/api/data' + (force ? '?t=' + Date.now() : ''), force ? { cache: 'no-store' } : {})
+
+  // Apps Script routinely takes 2-4s and occasionally much longer. Without a bound, a slow
+  // response leaves the board on "loading" indefinitely; with one, it becomes a stated
+  // timeout the user can retry.
+  var ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+  var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 30000);
+
+  var opts = force ? { cache: 'no-store' } : {};
+  if (ctrl) opts.signal = ctrl.signal;
+
+  return fetch('/api/data' + (force ? '?t=' + Date.now() : ''), opts)
     .then(function (r) {
+      clearTimeout(timer);
       // Without an ok check, a 500 returning valid JSON fell through to an empty board that
       // read as "no jobs scheduled" rather than as a failure.
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -1009,7 +1029,13 @@ function load(force) {
       render();
       paintFreshness();
     })
-    .catch(showLoadError)
+    .catch(function (err) {
+      clearTimeout(timer);
+      // An aborted fetch reports as "AbortError", which tells the user nothing.
+      showLoadError(err && err.name === 'AbortError'
+        ? new Error('Request timed out after 30 seconds')
+        : err);
+    })
     .then(function () { loadInFlight = false; });
 }
 
