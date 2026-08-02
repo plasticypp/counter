@@ -93,8 +93,14 @@ function poOcrPdfViaThumbnail_(pdfBlob, tempIds) {
 
   // 4. Hand the image back to Drive for genuine OCR. An image has no text layer, so the
   //    shortcut that defeated the direct-PDF attempt is unavailable.
+  //
+  //    The metadata must NOT name the Docs mimeType here: in Drive v2 that declares what is
+  //    being UPLOADED, so the request reads as "a Google Doc that needs OCR" and is rejected
+  //    with "OCR is not supported for files of type application/vnd.google-apps.document".
+  //    Conversion is requested through the convert/ocr options instead, and the upload keeps
+  //    the blob's own image type.
   var doc = Drive.Files.insert(
-    { title: PO_IMPORT_TEMP_PREFIX_ + 'ocr', mimeType: 'application/vnd.google-apps.document' },
+    { title: PO_IMPORT_TEMP_PREFIX_ + 'ocr' },
     res.getBlob(),
     { ocr: true, ocrLanguage: 'en', convert: true }
   );
