@@ -202,8 +202,11 @@
   td:first-child, td:nth-child(2) { z-index: 2; }
   /* The seam needs to read as an edge, or frozen cells look like they overlap the grid. */
   th:nth-child(2), td:nth-child(2) { box-shadow: 6px 0 6px -6px rgba(22,24,29,.18); }
-  .group-row td:first-child, .subtotal-row td:first-child,
-  .group-row td:nth-child(2), .subtotal-row td:nth-child(2) { background: var(--panel-alt); }
+  /* Frozen cells need an opaque background or the grid shows through as it scrolls beneath
+     them — but it must be the row's OWN colour. Painting both row types --panel-alt put a
+     grey patch over the subtotal's tint at exactly the two columns that carry its label. */
+  .group-row td:first-child, .group-row td:nth-child(2) { background: var(--panel-alt); }
+  .subtotal-row td:first-child, .subtotal-row td:nth-child(2) { background: #dbe0f2; }
   table { border-collapse: collapse; width: max-content; min-width: 100%; }
   th, td {
     padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap;
@@ -232,8 +235,13 @@
   .group-row .sub {
     font-family: var(--sans); font-weight: 500; color: var(--dim); font-size: var(--fs-xs); margin-left: var(--sp-3);
   }
-  .subtotal-row td { font-weight: 800; background: var(--panel-alt); color: var(--ink); border-bottom: 1px solid var(--line); font-size: var(--fs-md); }
-  .subtotal-row td:first-child { font-family: var(--sans); color: var(--dim); font-weight: 700; text-transform: uppercase; font-size: var(--fs-2xs); letter-spacing: .04em; }
+  /* Same tinted band as the card views, so a subtotal looks like a subtotal at every width. */
+  .subtotal-row td {
+    font-weight: 800; background: #dbe0f2; color: var(--ink);
+    border-top: 2px solid var(--primary); border-bottom: 1px solid var(--line);
+    font-size: var(--fs-md);
+  }
+  .subtotal-row td:first-child { font-family: var(--sans); color: var(--primary); font-weight: 800; text-transform: uppercase; font-size: var(--fs-2xs); letter-spacing: .04em; }
 
   /* date grid: compact day columns so the whole ~30-day span fits with far less horizontal
      scroll. Narrow cells, tight labels — the colored bars still read clearly. */
@@ -314,9 +322,10 @@
      nothing. */
   .tcard-sub {
     display: grid; grid-template-columns: 1.1fr repeat(5, 0.55fr) 2fr; gap: var(--sp-2);
-    align-items: center; padding: var(--sp-2) var(--sp-3); background: var(--panel-alt);
-    font-family: var(--mono); font-weight: 700; font-size: var(--fs-sm); color: var(--ink);
-    border-bottom: 1px solid var(--line);
+    align-items: center; padding: var(--sp-2) var(--sp-3);
+    background: #dbe0f2;
+    font-family: var(--mono); font-weight: 800; font-size: var(--fs-md); color: var(--ink);
+    border-top: 2px solid var(--primary); border-bottom: 1px solid var(--line);
   }
   .tcard-sub .lead {
     font-family: var(--sans); font-size: var(--fs-2xs); font-weight: 700; color: var(--primary);
@@ -398,9 +407,13 @@
 
   /* extra-compact timeline: [startDate] ——●═════●—— [endDate] on one line */
   .cbar { display: flex; align-items: center; gap: 7px; }
+  /* Filled chips rather than bare text. As 11px grey on white these were the faintest thing
+     on the card, yet the start and end dates are the whole point of the bar beside them. */
   .cbar-lbl {
-    flex: 0 0 auto; font-family: var(--mono); font-size: var(--fs-2xs); font-weight: 700; color: var(--dim);
+    flex: 0 0 auto; font-family: var(--mono); font-size: var(--fs-2xs); font-weight: 700;
     font-variant-numeric: tabular-nums; white-space: nowrap;
+    color: var(--ink); background: var(--panel-alt);
+    border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px;
   }
   .cbar-track {
     position: relative; flex: 1 1 auto; height: 8px; border-radius: 4px;
@@ -508,8 +521,12 @@
      totals. The vertical padding stays a little larger to give the row weight as a footer. */
   .card-sub {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); gap: 10px 4px;
-    padding: 11px var(--sp-3); background: var(--panel-alt);
-    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    padding: 11px var(--sp-3);
+    /* A tinted brand wash instead of --panel-alt. At #f2f4f8 the band was within a few
+       percent of the white card behind it, so the row that closes a group looked like just
+       another row. This reads as a boundary while staying quiet enough for a plant screen. */
+    background: #dbe0f2;
+    border-top: 2px solid var(--primary); border-bottom: 1px solid var(--line);
   }
   .card-sub > div {
     display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0;
