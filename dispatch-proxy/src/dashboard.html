@@ -575,6 +575,7 @@ var MACHINES_SEEN = [];
 
 var LAST_OK = null;      // Date of the last successful fetch — the freshness stamp's source.
 var LAST_ERROR = '';     // Why the last attempt failed, so the message can name the cause.
+var SERVING_STALE = false; // True when the worker fell back to its last-good copy.
 
 function colorFor(machine) { return PALETTE[machine] || 'var(--mx)'; }
 function fmtNum(n) { var v = Number(n); return isFinite(v) ? Math.round(v).toLocaleString('en-IN') : '—'; }
@@ -626,16 +627,17 @@ function paintFreshness() {
   // pulsing "live" dot over data that never refreshed.
   var paused = (typeof pollingWanted === 'function') && !pollingWanted() && !document.hidden;
   var label;
-  if (paused) label = 'Paused at ' + stamp + ' — click to refresh';
+  if (SERVING_STALE) label = 'Server busy — showing ' + stamp + ' data';
+  else if (paused) label = 'Paused at ' + stamp + ' — click to refresh';
   else if (mins < 1) label = 'Updated just now';
   else if (mins < 60) label = 'Updated ' + mins + ' min ago';
   else label = 'Updated ' + stamp + ' — may be out of date';
-  text.innerHTML = (paused || mins >= 60)
+  text.innerHTML = (SERVING_STALE || paused || mins >= 60)
     ? esc(label)
     : esc(label) + ' &nbsp;<b>' + esc(stamp) + '</b>';
-  box.classList.toggle('is-fresh', !paused && mins < 5);
-  box.classList.toggle('is-aging', !paused && mins >= 5 && mins < 30);
-  box.classList.toggle('is-stale', paused || mins >= 30);
+  box.classList.toggle('is-fresh', !SERVING_STALE && !paused && mins < 5);
+  box.classList.toggle('is-aging', !SERVING_STALE && !paused && mins >= 5 && mins < 30);
+  box.classList.toggle('is-stale', SERVING_STALE || paused || mins >= 30);
 }
 
 function applyFilter(rows) {
@@ -1054,25 +1056,27 @@ function showLoadError(err) {
 
 var loadInFlight = false;
 
-/* `force` distinguishes a person asking from a timer asking. A scheduled poll is happy with
-   the worker's 30s cached response — that is the whole point of the cache. Someone clicking
-   "refresh" is explicitly saying the cache is not good enough, so that one bypasses it. */
+/* `force` marks a person asking rather than a timer.
+   Both paths now go through the edge cache. `cache: 'no-store'` used to be set here, which
+   defeated it — every manual refresh, and every tab regaining focus, went straight to Apps
+   Script. With several viewers that queued the script until it shed requests as 404s. The
+   cache is only 45s old at worst, which is well inside what a schedule board needs. */
 function load(force) {
   // A manual click landing on top of a scheduled tick would double the request cost for one
   // result; the second caller just rides along with the first.
   if (loadInFlight) return Promise.resolve();
   loadInFlight = true;
 
-  // Apps Script routinely takes 2-4s and occasionally much longer. Without a bound, a slow
-  // response leaves the board on "loading" indefinitely; with one, it becomes a stated
-  // timeout the user can retry.
+  // 60s, not 30. Apps Script has been measured at 23s for a single call, and the worker now
+  // retries up to three times behind this request — so a bound tight enough to cut off a
+  // slow-but-working response would manufacture the very failure it reports.
   var ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
-  var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 30000);
+  var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 60000);
 
-  var opts = force ? { cache: 'no-store' } : {};
+  var opts = {};
   if (ctrl) opts.signal = ctrl.signal;
 
-  return fetch('/api/data' + (force ? '?t=' + Date.now() : ''), opts)
+  return fetch('/api/data', opts)
     .then(function (r) {
       clearTimeout(timer);
       // Without an ok check, a 500 returning valid JSON fell through to an empty board that
@@ -1084,7 +1088,11 @@ function load(force) {
       if (data && data.error) throw new Error(data.error);
       ROWS = (data && data.rows) || [];
       GRID_START = (data && data.gridStart) ? new Date(data.gridStart) : null;
-      LAST_OK = new Date();
+      // A served-from-fallback payload is real data, but it is NOT current: the upstream is
+      // throttling. Don't advance the freshness stamp, or the board would claim to be up to
+      // date while showing an older schedule.
+      SERVING_STALE = !!(data && data.stale);
+      if (!SERVING_STALE) LAST_OK = new Date();
       render();
       paintFreshness();
     })
@@ -1092,7 +1100,7 @@ function load(force) {
       clearTimeout(timer);
       // An aborted fetch reports as "AbortError", which tells the user nothing.
       showLoadError(err && err.name === 'AbortError'
-        ? new Error('Request timed out after 30 seconds')
+        ? new Error('Request timed out after 60 seconds')
         : err);
     })
     .then(function () { loadInFlight = false; });
