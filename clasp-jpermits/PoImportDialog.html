@@ -185,7 +185,8 @@ function renderReview(r) {
       '<td>' + l.sr + '</td>' +
       '<td>' + esc(l.code) + '</td>' +
       '<td>' + num(l.qty) + '</td>' +
-      '<td class="' + (l.rateSource === 'derived' ? 'derived' : '') + '">' + num(l.rate, 2) + '</td>' +
+      '<td class="' + (l.rateCorroborated ? '' : 'derived') + '">' + num(l.rate, 2) +
+        (l.rateCorroborated ? '' : ' ⚠') + '</td>' +
       '<td>' + num(l.amount) + '</td></tr>';
   });
   rows += '<tr class="totals"><td colspan="3">Total</td><td>' + num(r.check.sumQty) +
@@ -202,8 +203,9 @@ function renderReview(r) {
              'would double every quantity on the board.</div>';
   }
   if (r.check.pass) {
-    notes += '<div class="note ok"><b>Figures verified.</b> Every line satisfies qty × rate = ' +
-             'amount, and the columns match the totals printed on the PO.</div>';
+    notes += '<div class="note ok"><b>Figures verified.</b> Every computed rate is confirmed ' +
+             'against the PO\'s rate column, and the quantity and amount columns match the ' +
+             'totals printed on the PO.</div>';
   } else {
     notes += '<div class="note bad"><b>The figures do not add up.</b> Check these against the ' +
              'PDF before importing:<ul>' +

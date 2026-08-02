@@ -147,38 +147,41 @@ function poParseText_(text) {
     return m ? poToNumber_(m[1]) : null;
   });
 
-  // Rates are accepted ONLY when their count matches the codes exactly. OCR output is not
-  // byte-identical between runs — one pass produced four NOS tokens and the next three,
-  // which shifted every rate up a row and yielded a plausible table with wrong prices.
+  // THE RATE COLUMN CANNOT BE READ POSITIONALLY.
+  //
+  // Measured over four runs of this PO: codes and quantities come back perfectly every
+  // time, but the rate list is consistently SHORT. This PO charges 13.94 on two different
+  // lines and OCR collapses the repeat, returning [10.69, 13.94, 18.40] for four products.
+  // It is not a misread that better matching would fix — the duplicate is simply absent, so
+  // zipping by position silently assigns line 4's rate to line 3.
+  //
+  // Amount / qty recovers it exactly (512602 / 36772 = 13.94). So the amount column is read
+  // and the rate COMPUTED from it, which is the reverse of the obvious arrangement but the
+  // only one that survives duplicate rates. The OCR'd rates are still collected — not to be
+  // trusted, but to be checked against, so a wrong amount cannot pass unnoticed.
   var rateMatches = text.match(/\bNOS\s+[\d,]+\.\d{1,2}\b/gi) || [];
-  var ratesAligned = rateMatches.length === codes.length;
-  var rates = rateMatches.map(function (s) {
+  var ocrRates = rateMatches.map(function (s) {
     return poToNumber_(s.replace(/\bNOS\s+/i, ''));
   });
 
   var amounts = poCollectAmounts_(text, codes.length);
 
   var lines = codes.map(function (code, i) {
+    var qty = qtys[i] === undefined ? null : qtys[i];
+    var amount = amounts[i] === undefined ? null : amounts[i];
+    var rate = (qty && amount) ? Math.round((amount / qty) * 100) / 100 : null;
     return {
       sr: i + 1,
       code: code,
-      qty: qtys[i] === undefined ? null : qtys[i],
-      rate: ratesAligned ? (rates[i] === undefined ? null : rates[i]) : null,
-      amount: amounts[i] === undefined ? null : amounts[i],
-      rateSource: ratesAligned ? 'read' : 'pending'
+      qty: qty,
+      rate: rate,
+      amount: amount,
+      // Every computed rate must appear somewhere in the OCR'd rate list. If it does not,
+      // either the amount or the quantity was misread, and the review screen says so.
+      rateCorroborated: rate !== null && ocrRates.some(function (r) {
+        return Math.abs(r - rate) < 0.005;
+      })
     };
-  });
-
-  // Where the rate could not be read, derive it from amount / qty. Both of those are
-  // independently cross-checked against the printed totals, so this is sounder than a
-  // positional guess — and the qty x rate test still has to pass afterwards.
-  lines.forEach(function (l) {
-    if (l.rate === null && l.qty && l.amount) {
-      l.rate = Math.round((l.amount / l.qty) * 100) / 100;
-      l.rateSource = 'derived';
-    } else if (l.rate === null) {
-      l.rateSource = 'missing';
-    }
   });
 
   var poNo = text.match(/\b([A-Z]{2,5}\/\d{2}-\d{2}\/[A-Z]{2,5}\/\d{3,6})\b/);
@@ -236,17 +239,20 @@ function poVerify_(parsed) {
   var sumQty = 0;
   var sumAmt = 0;
 
+  // Note what is NOT checked here: qty x rate = amount. The rate is now computed as
+  // amount / qty, so that test is circular and would always pass. The genuine checks are
+  // that each computed rate appears in the OCR'd rate column, and that the columns sum to
+  // the totals printed on the PO.
   parsed.lines.forEach(function (l) {
     sumQty += l.qty || 0;
     sumAmt += l.amount || 0;
     if (l.qty === null) problems.push('Line ' + l.sr + ' (' + l.code + '): quantity not read');
-    if (l.rate === null) problems.push('Line ' + l.sr + ' (' + l.code + '): rate not read');
-    if (l.qty !== null && l.rate !== null && l.amount !== null) {
-      var calc = l.qty * l.rate;
-      if (Math.abs(calc - l.amount) > 1.5) {
-        problems.push('Line ' + l.sr + ' (' + l.code + '): ' + l.qty + ' x ' + l.rate +
-          ' = ' + calc.toFixed(2) + ', but the amount column reads ' + l.amount);
-      }
+    if (l.amount === null) problems.push('Line ' + l.sr + ' (' + l.code + '): amount not read');
+    if (l.rate === null) {
+      problems.push('Line ' + l.sr + ' (' + l.code + '): rate could not be worked out');
+    } else if (!l.rateCorroborated) {
+      problems.push('Line ' + l.sr + ' (' + l.code + '): computed rate ' + l.rate +
+        ' does not appear anywhere in the rate column — the quantity or amount was misread');
     }
   });
 
@@ -262,11 +268,9 @@ function poVerify_(parsed) {
   if (!parsed.poNumber) problems.push('PO number not found');
   if (!parsed.poDate) warnings.push('PO date not found — enter it by hand after importing.');
 
-  var derived = parsed.lines.filter(function (l) { return l.rateSource === 'derived'; }).length;
-  if (derived) {
-    warnings.push(derived + ' rate(s) were computed as amount / qty because OCR did not read ' +
-      'them cleanly. They agree with the printed amounts — confirm against the PDF.');
-  }
+  warnings.push('Rates are computed as amount ÷ quantity. OCR drops repeated values in the ' +
+    'rate column, so reading it directly would mis-assign them; each computed rate is ' +
+    'checked back against the column instead.');
 
   return { pass: problems.length === 0, problems: problems, warnings: warnings,
            sumQty: sumQty, sumAmt: sumAmt };
