@@ -309,10 +309,20 @@
   .prop-bar { position: relative; height: 28px; background: var(--panel-alt); border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
   .prop-bar .fill { position: absolute; top: 0; bottom: 0; border-radius: 13px; }
   .prop-bar .today-mark { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--today); z-index: 2; }
+  /* Mirrors .tcard's own track definition so each subtotal sits under the column it totals.
+     As a flex row it produced "12,000 / 6,075 / 3,900 / 25" jammed at one edge, aligned with
+     nothing. */
   .tcard-sub {
-    display: flex; justify-content: space-between; padding: var(--sp-2) var(--sp-3); background: var(--panel-alt);
-    font-family: var(--mono); font-weight: 700; font-size: var(--fs-sm); color: var(--ink); border-bottom: 1px solid var(--line);
+    display: grid; grid-template-columns: 1.1fr repeat(5, 0.55fr) 2fr; gap: var(--sp-2);
+    align-items: center; padding: var(--sp-2) var(--sp-3); background: var(--panel-alt);
+    font-family: var(--mono); font-weight: 700; font-size: var(--fs-sm); color: var(--ink);
+    border-bottom: 1px solid var(--line);
   }
+  .tcard-sub .lead {
+    font-family: var(--sans); font-size: var(--fs-2xs); font-weight: 700; color: var(--primary);
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  .tcard-sub .val { text-align: right; font-variant-numeric: tabular-nums; }
 
   /* ---------------- mobile: stacked cards, single bar, minimal chrome ---------------- */
   .cards { display: none; }
@@ -486,13 +496,31 @@
   .jump-today:hover { border-color: var(--primary); }
 
   /* Mobile group subtotal — matches the tablet/desktop treatment. */
+  /* The subtotal repeats the metric grid's geometry EXACTLY — same auto-fit tracks, same
+     gap, same padding — so each total sits directly beneath the column it totals. It was
+     previously a right-aligned run of text ("19,500 qty · 2,969 bal") that lined up with
+     nothing above it and read as a footnote rather than a figure worth scanning. */
   .card-sub {
-    display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-2);
-    padding: 9px var(--sp-3); background: var(--panel-alt);
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); gap: 10px 4px;
+    padding: 10px var(--sp-3); background: var(--panel-alt);
     border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
-    font-family: var(--sans); font-size: var(--fs-xs); font-weight: 700; color: var(--dim);
   }
-  .card-sub b { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+  .card-sub > div {
+    display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0;
+  }
+  .card-sub span {
+    color: var(--dim); font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase;
+    letter-spacing: .02em; font-family: var(--sans); margin-bottom: 3px;
+  }
+  .card-sub b {
+    font-family: var(--mono); font-variant-numeric: tabular-nums;
+    font-size: var(--fs-md); font-weight: 800; color: var(--ink); line-height: 1;
+  }
+  /* The label cell carries no number, so it anchors left and names the row. */
+  .card-sub .lead { align-items: flex-start; text-align: left; justify-content: center; }
+  .card-sub .lead span {
+    margin-bottom: 0; color: var(--primary); font-size: var(--fs-xs);
+  }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
@@ -852,7 +880,17 @@ function render() {
         proportionalBar(r) +
         '</div>';
     });
-    html += '<div class="tcard-sub"><span>Subtotal</span><span>' + fmtNum(sub.orderQty) + ' / ' + fmtNum(sub.supplied) + ' / ' + fmtNum(sub.readyStock) + ' / ' + fmtNum(sub.balance) + '</span></div>';
+    // Eight cells to match .tcard's eight tracks: label, the five metrics, then the bar
+    // column left empty. Days has no meaningful total.
+    html += '<div class="tcard-sub">' +
+      '<span class="lead">Subtotal</span>' +
+      '<span class="val">' + fmtNum(sub.orderQty) + '</span>' +
+      '<span class="val">' + fmtNum(sub.supplied) + '</span>' +
+      '<span class="val">' + fmtNum(sub.readyStock) + '</span>' +
+      '<span class="val">' + fmtNum(sub.balance) + '</span>' +
+      '<span></span>' +
+      '<span></span>' +
+      '</div>';
   });
   html += '</div>';
 
@@ -889,8 +927,21 @@ function render() {
     // Mobile was the only rendering without a group subtotal — `sub` was computed and then
     // discarded — leaving the manager in transit, the person least able to add figures in
     // their head, as the only one asked to.
-    html += '<div class="card-sub"><span>Subtotal</span>'
-      + '<span><b>' + fmtNum(sub.orderQty) + '</b> qty · <b>' + fmtNum(sub.balance) + '</b> bal</span></div>';
+    // Same cells in the same order as the metric row above, so every figure lands under its
+    // own column. The Days column has no meaningful total, so it holds the label instead of
+    // an invented number.
+    var subExtra = showRmMb
+      ? '<div><span>RM Req</span><b>' + fmtNum(sub.rmReq) + '</b></div>' +
+        '<div><span>MB</span><b>' + fmtNum(sub.mb) + '</b></div>'
+      : '';
+    html += '<div class="card-sub">' +
+      '<div><span>Qty</span><b>' + fmtNum(sub.orderQty) + '</b></div>' +
+      '<div><span>Supplied</span><b>' + fmtNum(sub.supplied) + '</b></div>' +
+      '<div><span>Ready</span><b>' + fmtNum(sub.readyStock) + '</b></div>' +
+      '<div><span>Balance</span><b>' + fmtNum(sub.balance) + '</b></div>' +
+      '<div class="lead"><span>Subtotal</span></div>' +
+      subExtra +
+      '</div>';
   });
   html += '</div>';
 
