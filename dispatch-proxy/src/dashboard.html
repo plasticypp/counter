@@ -620,12 +620,28 @@ function computeDateCols(rows) {
   // Timeline start = the sheet's own grid start (first date column after Month), sent as
   // GRID_START. This mirrors the sheet EXACTLY — same day, no timezone drift. Fall back to
   // IST-today only if the sheet didn't send it.
-  if (!TODAY) {
-    var nowIst = new Date(Date.now() + 5.5 * 3600 * 1000);
-    TODAY = new Date(Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth(), nowIst.getUTCDate()));
-  }
-  var gridStart = GRID_START || TODAY;
   var msDay = 86400000;
+
+  // TODAY must sit on the SAME instant-of-day as the grid's columns, or the equality test
+  // that highlights it can never be true. gridStart arrives as IST midnight (18:30 UTC the
+  // previous day), while a UTC-midnight TODAY is 5.5 hours adrift — so every column missed
+  // and the today marker simply never appeared.
+  //
+  // Anchor on gridStart and step whole days from it: whatever offset the sheet's day
+  // boundary uses, today lands exactly on a column.
+  var nowIst = new Date(Date.now() + 5.5 * 3600 * 1000);
+  var istMidnightUtc = Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth(), nowIst.getUTCDate())
+    - 5.5 * 3600 * 1000;
+
+  if (GRID_START) {
+    // Round to the nearest whole day from gridStart so DST-free IST arithmetic stays exact.
+    var daysFromStart = Math.round((istMidnightUtc - GRID_START.getTime()) / msDay);
+    TODAY = new Date(GRID_START.getTime() + daysFromStart * msDay);
+  } else {
+    TODAY = new Date(istMidnightUtc);
+  }
+
+  var gridStart = GRID_START || TODAY;
   var minD = gridStart, maxD = new Date(gridStart.getTime() + 14 * msDay);
   if (withDates.length) {
     var ends = withDates.map(function (r) { return new Date(r.end); });
