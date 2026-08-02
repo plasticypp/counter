@@ -142,9 +142,17 @@ function poParseText_(text) {
     return { ok: false, error: 'No item codes (PMxxx####) were found in this PDF.' };
   }
 
-  var qtys = codes.map(function (code) {
-    var m = text.match(new RegExp(code + '\\s+([\\d,]+)'));
-    return m ? poToNumber_(m[1]) : null;
+  // Quantity, and where present the rate, sit inline right after each code:
+  //     PMCON0155 970 NOS 10.69   PMCON0105 31,248 NOS 13.94   PMCON0117 36,772 NOS   ...
+  // Reading them per code — rather than harvesting each column separately — keeps every
+  // value tied to the product it belongs to, which is what a column-wise read cannot
+  // guarantee once OCR drops a repeat.
+  var qtys = [];
+  var inlineRates = [];
+  codes.forEach(function (code) {
+    var m = text.match(new RegExp(code + '\\s+([\\d,]+)\\s*(?:NOS)?\\s*([\\d,]+\\.\\d{1,2})?', 'i'));
+    qtys.push(m ? poToNumber_(m[1]) : null);
+    inlineRates.push(m && m[2] ? poToNumber_(m[2]) : null);
   });
 
   // THE RATE COLUMN CANNOT BE READ POSITIONALLY.
@@ -169,18 +177,31 @@ function poParseText_(text) {
   var lines = codes.map(function (code, i) {
     var qty = qtys[i] === undefined ? null : qtys[i];
     var amount = amounts[i] === undefined ? null : amounts[i];
-    var rate = (qty && amount) ? Math.round((amount / qty) * 100) / 100 : null;
+    var computed = (qty && amount) ? Math.round((amount / qty) * 100) / 100 : null;
+    var inline = inlineRates[i];
+
+    // Prefer the rate printed beside the code; fall back to amount / qty where OCR dropped
+    // it (which happens whenever the same rate appears twice on one PO).
+    var rate = inline !== null && inline !== undefined ? inline : computed;
+
+    // Corroboration means two independent readings agree. Where both exist they must match;
+    // where only the computed one exists, it has to appear somewhere in the rate column.
+    var corroborated;
+    if (inline !== null && inline !== undefined && computed !== null) {
+      corroborated = Math.abs(inline - computed) < 0.015;
+    } else if (computed !== null) {
+      corroborated = ocrRates.some(function (r) { return Math.abs(r - computed) < 0.005; });
+    } else {
+      corroborated = false;
+    }
+
     return {
       sr: i + 1,
       code: code,
       qty: qty,
       rate: rate,
       amount: amount,
-      // Every computed rate must appear somewhere in the OCR'd rate list. If it does not,
-      // either the amount or the quantity was misread, and the review screen says so.
-      rateCorroborated: rate !== null && ocrRates.some(function (r) {
-        return Math.abs(r - rate) < 0.005;
-      })
+      rateCorroborated: corroborated
     };
   });
 
@@ -199,29 +220,44 @@ function poParseText_(text) {
 }
 
 /**
- * Amounts are the run of grouped numbers between the last rate and the Total label.
- * Restricting the window keeps GST figures, pin codes and phone numbers from being
- * mistaken for line amounts.
+ * Amounts are the run of numbers between the last item code and the Total label.
+ *
+ * Two hazards in that window. Rates OCR drops from their inline position reappear here as
+ * orphans — this PO's second 13.94 lands among the amounts and shifts every one of them by
+ * a row. And an amount is a whole rupee figure, whereas a stray rate always carries paise.
+ * Filtering to integers removes the orphans without needing to know which rate was dropped.
  */
 function poCollectAmounts_(text, expected) {
-  var rateRe = /\bNOS\s+[\d,]+\.\d{1,2}\b/gi;
-  var lastEnd = 0;
+  var lastCode = 0;
+  var codeRe = /\bPM[A-Z]{3}\d{4}\b[^\n]*/g;
   var m;
-  while ((m = rateRe.exec(text)) !== null) lastEnd = m.index + m[0].length;
+  while ((m = codeRe.exec(text)) !== null) lastCode = m.index + m[0].length;
 
   var totalIdx = text.search(/\bTotal\b/i);
-  var segment = text.slice(lastEnd, totalIdx > lastEnd ? totalIdx : text.length);
+  var segment = text.slice(lastCode, totalIdx > lastCode ? totalIdx : text.length);
 
   var nums = (segment.match(/\b\d[\d,]*(?:\.\d{1,2})?\b/g) || [])
+    .filter(function (s) { return s.indexOf('.') === -1; })  // drop orphaned rates
     .map(poToNumber_)
     .filter(function (n) { return n !== null && n > 0; });
 
-  return nums.slice(-expected);
+  // Take the FIRST `expected` values: the amounts column comes immediately after the line
+  // rows, and anything later in the window is page furniture.
+  return nums.slice(0, expected);
 }
 
+/**
+ * The printed totals are the outside check on everything else, so both are worth finding.
+ *
+ * OCR interleaves this region unpredictably — observed as
+ *     Total \n 76,994 \n Packing & Forwarding Freight Charges \n 11,05,842
+ * so the grand amount can sit after intervening label text rather than directly after
+ * "Packing & Forwarding". Both patterns allow words in between rather than assuming
+ * adjacency.
+ */
 function poFindPrintedTotals_(text) {
-  var qty = text.match(/([\d,]{4,})\s*[\r\n]+\s*Packing/i);
-  var amt = text.match(/Packing\s*&?\s*Forwarding\s*[\r\n]+\s*([\d,]+)/i);
+  var qty = text.match(/\bTotal\b[\s\S]{0,40}?\b([\d,]{4,})\b/i);
+  var amt = text.match(/Packing[\s\S]{0,80}?\b([\d,]{6,})\b/i);
   return {
     qty: qty ? poToNumber_(qty[1]) : null,
     amount: amt ? poToNumber_(amt[1]) : null
