@@ -388,9 +388,11 @@
     color: var(--dim); font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase;
     letter-spacing: .02em; font-family: var(--sans); margin-bottom: 3px;
   }
+  /* Regular weight. Per-item figures are the many; the subtotal is the one that closes a
+     group, and it can only read as a total if the rows above it are quieter than it is. */
   .metric-row b {
     font-family: var(--mono); font-variant-numeric: tabular-nums;
-    font-size: var(--fs-md); font-weight: 700; color: var(--ink); line-height: 1;
+    font-size: var(--fs-md); font-weight: 400; color: var(--ink); line-height: 1;
   }
   .card .prop-bar { height: 26px; margin-top: var(--sp-1); }
 
@@ -500,26 +502,32 @@
      gap, same padding — so each total sits directly beneath the column it totals. It was
      previously a right-aligned run of text ("19,500 qty · 2,969 bal") that lined up with
      nothing above it and read as a footnote rather than a figure worth scanning. */
+  /* .card-sub is a SIBLING of .card, not a child, so it does not inherit the card's 12px
+     padding. Its own horizontal padding has to equal that inset — otherwise the auto-fit
+     tracks resolve against a wider box and every total sits ~12px left of the figure it
+     totals. The vertical padding stays a little larger to give the row weight as a footer. */
   .card-sub {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); gap: 10px 4px;
-    padding: 10px var(--sp-3); background: var(--panel-alt);
+    padding: 11px var(--sp-3); background: var(--panel-alt);
     border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
   }
   .card-sub > div {
     display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0;
   }
-  .card-sub span {
-    color: var(--dim); font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase;
-    letter-spacing: .02em; font-family: var(--sans); margin-bottom: 3px;
-  }
+  /* No column headers on the subtotal row: it sits directly beneath the item rows that are
+     already labelled, so repeating QTY / SUPPLIED / READY / BALANCE only adds noise. Column
+     position carries the meaning. */
+  .card-sub span { display: none; }
   .card-sub b {
     font-family: var(--mono); font-variant-numeric: tabular-nums;
     font-size: var(--fs-md); font-weight: 800; color: var(--ink); line-height: 1;
   }
-  /* The label cell carries no number, so it anchors left and names the row. */
+  /* The label cell carries no number, so it anchors left and names the row. It is the one
+     span that survives the hide rule above — without it the row of figures is unlabelled. */
   .card-sub .lead { align-items: flex-start; text-align: left; justify-content: center; }
   .card-sub .lead span {
-    margin-bottom: 0; color: var(--primary); font-size: var(--fs-xs);
+    display: block; margin-bottom: 0; color: var(--primary);
+    font-size: var(--fs-xs); font-weight: 800;
   }
 
   @media (prefers-reduced-motion: reduce) {
