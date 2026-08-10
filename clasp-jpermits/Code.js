@@ -904,6 +904,15 @@ function installDispatchScheduleColumns_(dispatch) {
     dispatch.insertColumnsBefore(bucketStartCol + physicalDaysISC, bucketDaysISC - physicalDaysISC);
   }
 
+  // The window rolls forward from TODAY by design: the board is for work still to come, so
+  // columns are never spent on days already past.
+  //
+  // Rolling was previously blamed for "drift" — 07-09/Sep sat empty while jobs ran to 11-Sep.
+  // That was not the roll; it was a WIDTH mismatch. bucketDaysISC was 30 while the sheet had 31
+  // physical day columns, so the label/paint loops (which both run to bucketDaysISC) never
+  // reached the last one and it kept whatever stale label it was built with. With the widening
+  // guard above, physical width and bucketDaysISC are always equal, so every column is
+  // relabelled and repainted on every run and none can go stale.
   var bucketDatesISC = [];
   var cursorISC = new Date(todayISC.getTime());
   for (var bd = 0; bd < bucketDaysISC; bd++) {
