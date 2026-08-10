@@ -1,8 +1,13 @@
 /**
- * Neon cross-hair highlight for the active cell.
+ * Neon row highlight for the active cell.
  *
- * Draws a thick neon outline around the perimeter of the active cell's ROW and its COLUMN, so the
- * cursor stays findable across Dispatch's 93 columns and ~74 rows.
+ * Draws a thick neon outline around the perimeter of the row containing the active cell, so the
+ * current row stays findable across Dispatch's 93 columns.
+ *
+ * ROW ONLY, deliberately. A matching column band was tried and removed: a full-height outline
+ * crosses every horizontal rule on the sheet, and because Apps Script cannot read borders back
+ * (see below) each crossing stripped a real border for good. The row band crosses only vertical
+ * rules at its two ends, so its blast radius is two edges rather than the whole column.
  *
  * Why a border and not a background:
  * on Dispatch the cell BACKGROUND is load-bearing data — the per-machine Gantt bars, the subtotal
@@ -46,31 +51,18 @@ function onSelectionChange(e) {
 
     var props = PropertiesService.getUserProperties();
     var lastRow = Number(props.getProperty(ROW_HL_PROP_)) || 0;
-    var lastCol = Number(props.getProperty(COL_HL_PROP_)) || 0;
     var newRow = range.getRow();
-    var newCol = range.getColumn();
-    if (lastRow === newRow && lastCol === newCol) return;   // nothing moved: no redraw
+    if (lastRow === newRow) return;            // same row: nothing to redraw
 
-    // Bound the bands to the range actually in use. getMaxRows()/getMaxColumns() would run the
-    // outlines out into the empty grid, which looks broken and costs more to draw.
+    // Bound the band to the columns actually in use. getMaxColumns() would run the outline out
+    // into the empty grid past the invoice block, which looks broken and costs more to draw.
     var width = Math.max(sheet.getLastColumn(), 1);
-    var height = Math.max(sheet.getLastRow(), 1);
 
-    // Clear BOTH old bands before drawing EITHER new one. Clearing after drawing would let the
-    // old column's clear cut through the new row band where the two cross, leaving a gap in the
-    // fresh highlight — the two bands necessarily intersect, so the phases cannot be interleaved.
     if (lastRow > 0 && lastRow <= sheet.getMaxRows()) {
       rowHighlightSetBorder_(sheet, lastRow, width, null);
     }
-    if (lastCol > 0 && lastCol <= sheet.getMaxColumns()) {
-      colHighlightSetBorder_(sheet, lastCol, height, null);
-    }
-
     rowHighlightSetBorder_(sheet, newRow, width, ROW_HL_COLOR_);
-    colHighlightSetBorder_(sheet, newCol, height, ROW_HL_COLOR_);
-
     props.setProperty(ROW_HL_PROP_, String(newRow));
-    props.setProperty(COL_HL_PROP_, String(newCol));
   } catch (err) {
     // Deliberately silent — see above.
   }
@@ -88,7 +80,14 @@ function rowHighlightSetBorder_(sheet, row, width, color) {
     .setBorder(true, true, true, true, false, false, color, style);
 }
 
-/** Outline one column's perimeter. Passing color=null clears it. */
+/**
+ * Outline one column's perimeter. Passing color=null clears it.
+ *
+ * The column band was removed from the highlight: running a full-height outline down the sheet
+ * crosses every horizontal rule in it, and since borders cannot be read back, each crossing
+ * stripped a real border permanently. Kept only so clearRowHighlight() can remove a band left
+ * stranded by the cross-hair version.
+ */
 function colHighlightSetBorder_(sheet, col, height, color) {
   var style = color ? SpreadsheetApp.BorderStyle.SOLID_THICK : null;
   sheet.getRange(1, col, height, 1)
