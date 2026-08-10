@@ -58,6 +58,11 @@
 
     /* Spacing scale — 4px base grid. */
     --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px;
+
+    /* Rendered height of .card-group-head on mobile: its 13px/1.5 line box, 7px padding top and
+       bottom, and 1px border top and bottom. The column-label row pins directly beneath it, so
+       this is declared once and used by BOTH rather than measured by hand at each site. */
+    --group-head-pad: 7px;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -158,13 +163,24 @@
   .clock.is-stale .dot { background: var(--today); }
   .clock.is-stale { color: var(--today); font-weight: 700; }
 
-  /* flex:1 makes main absorb the leftover height so its bottom edge IS the viewport bottom;
-     margin-top:auto on the strip then parks it there whatever the content height. */
+  /* flex:1 makes main absorb the leftover height so its bottom edge IS the viewport bottom.
+     The view containers (.table-scroll, .cards, .tablet-cards) are the scroll boxes inside it;
+     the grand-total strip is NOT parked at that bottom edge — see below. */
+  /* Desktop: main bounds the table's scroll box, and does not scroll itself.
+     Card breakpoints override this — see the 1000px block. */
   main {
     padding: var(--sp-4); max-width: 100%; margin: 0 auto; width: 100%;
     flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0;
   }
-  main > .grand { margin-top: auto; }
+  /* No `margin-top: auto`. That parked the strip on the viewport's bottom edge permanently, so
+     the grand totals hovered over the board at every scroll position and there was no visual
+     end to the page. It sits after the scrolling view instead: reaching it means reaching the
+     end of the data. `flex: 0 0 auto` keeps it at its natural height rather than being
+     stretched or squeezed by the column.
+     The original reason for margin-top:auto — a SHORT board leaving the strip floating
+     mid-page — is handled by the scroll box above it taking the leftover height (flex: 1 1
+     auto), which pushes the strip to the bottom without pinning it there. */
+  main > .grand { flex: 0 0 auto; }
 
   /* ---------------- legend ---------------- */
   /* Sticky: it maps colour to machine, and scrolling it away left hue as an unresolvable
@@ -179,13 +195,14 @@
   .legend .today-chip i { background: var(--today); border-radius: 50%; }
 
   /* ---------------- desktop: unified table ---------------- */
-  /* The date header is `position: sticky`, which resolves against the nearest scrolling
-     ancestor — and declaring overflow makes this box that ancestor rather than the viewport.
-     So the box has to own a bounded height or the header has nothing to stick within.
-     That height is now taken from the flex column (min-height:0 lets it shrink below its
-     content) instead of a measured `100vh - chrome` literal: the literal had to be re-measured
-     on every layout change, and each time it drifted it either clipped the table below the
-     fold or left the totals strip floating mid-page. */
+  /* DESKTOP KEEPS ITS OWN BOUNDED SCROLL BOX. The wide date grid needs horizontal scrolling
+     and the frozen Code/Item columns depend on it, and the sticky date header needs this box
+     to have a bounded height to move within — `flex: 1 1 auto; min-height: 0` supplies that
+     from the flex column.
+     The grand-total strip being glued to the window is a MOBILE complaint, and on desktop the
+     strip sitting under a full-height table is the intended footer behaviour. So this is left
+     as it was, and only the card views (which have no horizontal overflow and no frozen
+     columns) hand their scrolling to `main` — see the breakpoint override below. */
   .table-scroll {
     flex: 1 1 auto; min-height: 0;
     overflow: auto; overscroll-behavior: contain;
@@ -280,9 +297,10 @@
   }
 
   /* ---------------- grand total strip ---------------- */
-  /* Sits at the foot of the flex column (main > .grand { margin-top: auto }), so it lands on
-     the window's bottom edge whether the board has three rows or three hundred. It is a
-     footer, not an overlay — no sticky positioning needed once main fills the viewport. */
+  /* A footer, not an overlay: it follows the scrolling view rather than being pinned to the
+     window, so it comes into sight only when the board has been scrolled to its end. On a
+     short board the scroll box above still absorbs the spare height, so the strip lands at the
+     bottom of the window anyway — without hovering over the data on a long one. */
   .grand {
     flex: 0 0 auto;
     display: flex; gap: 0; flex-wrap: wrap; margin-top: 2px;
@@ -293,13 +311,61 @@
   .grand b { font-family: var(--mono); font-size: var(--fs-2xl); font-weight: 700; display: block; color: var(--primary); letter-spacing: -.01em; }
   .grand span { color: var(--dim); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: .06em; font-family: var(--sans); font-weight: 600; }
 
+  /* ---------------- product colour ----------------
+     Identity, not status. The code chip IS the swatch — the colour fills the object the reader
+     is already looking at. Desktop + tablet share .code-chip; mobile reuses its own
+     .card-top .code so the existing flex sizing keeps holding the long product names.
+     Colour never replaces the colour name: it stays in the chip's title and, on mobile, as its
+     own metric cell. Ink is computed per fill by measured contrast — see inkOn(). */
+  .code-chip {
+    display: inline-block; font-family: var(--mono); font-weight: 700; font-size: var(--fs-xs);
+    letter-spacing: .02em; color: var(--ink); background: var(--panel-alt);
+    border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; white-space: nowrap;
+  }
+  /* A tinted chip supplies its own background/border/ink inline. The dark ring keeps SILVER
+     and other pale fills from dissolving into the white panel. */
+  .code-chip.is-tinted, .card-top .code.is-tinted { box-shadow: inset 0 0 0 1px rgba(0,0,0,.22); }
+  /* Tablet/mobile: a full-height edge bar carries the colour at a glance, so the card can be
+     identified without reading. 5px tablet / 6px mobile — the phone card is shorter, so the
+     bar needs slightly more width to register. */
+     An inset box-shadow, NOT a ::before with extra padding-left. .card-sub and .tcard-sub are
+     SIBLINGS whose auto-fit tracks must resolve against the same box as the card's — widening
+     the card's padding by the bar's width shifts every figure out from under its subtotal,
+     which is the misalignment the previous pass already had to fix once. A shadow paints
+     inside the existing padding and changes no geometry. */
+  .tcard { box-shadow: inset 5px 0 0 0 var(--pc, transparent); }
+  .card { box-shadow: inset 6px 0 0 0 var(--pc, transparent); }
+
+  /* Mobile timeline ends as solid blocks rather than outlined text. Both ends take the same
+     brand fill: start and end are schedule boundaries, and a green/red pair would read as
+     good-vs-bad about dates that carry no such judgement. #1e40af on #fff is 8.72:1. */
+  .cbar-lbl.is-filled {
+    background: var(--primary); border-color: var(--primary); color: #fff;
+  }
+
   /* ---------------- tablet: proportional single-bar timeline ---------------- */
   .tablet-cards { display: none; }
+  /* Scrolls with its own rows — same reasoning as .card-group-head. */
   .tcard-group {
     background: var(--panel-alt); padding: var(--sp-3); font-family: var(--sans); font-weight: 700;
     font-size: var(--fs-lg); color: var(--primary); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
     display: flex; justify-content: space-between;
   }
+  /* Column labels for the tablet cards — pinned for the whole list, above the group headers. */
+  .tcard-head {
+    position: sticky; top: 0; z-index: 6;
+    display: grid; grid-template-columns: 1.1fr repeat(5, 0.55fr) 2fr; gap: var(--sp-2);
+    align-items: center; padding: 5px var(--sp-3);
+    background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  .tcard-head > div {
+    text-align: right; min-width: 0;
+    color: var(--dim); font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase;
+    letter-spacing: .03em; font-family: var(--sans);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* The first (code/name) and last (timeline) columns are not figures — their labels sit left. */
+  .tcard-head > div:first-child, .tcard-head > div:last-child { text-align: left; }
   .tcard-group .sub { font-family: var(--sans); font-weight: 500; color: var(--dim); font-size: var(--fs-xs); }
   .tcard {
     display: grid; grid-template-columns: 1.1fr repeat(5, 0.55fr) 2fr; gap: var(--sp-2); align-items: center;
@@ -335,9 +401,11 @@
 
   /* ---------------- mobile: stacked cards, single bar, minimal chrome ---------------- */
   .cards { display: none; }
+  /* Scrolls with its own rows — deliberately NOT sticky. The column labels are the only thing
+     pinned: they apply to every row, whereas the group's name is already stated at the head of
+     its own block and pinning it spent a second line of a phone screen restating it. */
   .card-group-head {
-    position: sticky; top: 0; z-index: 4;
-    background: var(--panel-alt); padding: 7px var(--sp-3); font-family: var(--sans); font-weight: 700; font-size: var(--fs-sm);
+    background: var(--panel-alt); padding: var(--group-head-pad) var(--sp-3); font-family: var(--sans); font-weight: 700; font-size: var(--fs-sm);
     color: var(--primary); display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
     border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
   }
@@ -383,8 +451,33 @@
      ragged second row whose columns did not line up with the first. auto-fit lets both counts
      resolve to even columns, and when 7 cannot fit the width they wrap into a TIDY second row
      of equal cells instead of a misaligned remainder. */
+  /* Column labels once per group, stuck under the group header, instead of repeated inside
+     every card. The track count is set inline from the same column list the cards use, so the
+     header, the cards and the subtotal always resolve to identical columns. */
+  /* Pinned at the top of the scrollport for the whole list. z-index above the group headers, so
+     each one slides UNDER this row rather than over it as it hands off to the next. */
+  .metric-head {
+    position: sticky; top: 0; z-index: 6;
+    display: grid; gap: 10px 4px; padding: 5px var(--sp-3);
+    background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  .metric-head > div {
+    text-align: center; min-width: 0;
+    color: var(--dim); font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase;
+    letter-spacing: .02em; font-family: var(--sans);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* Vertical rules tying each figure to its column label. The grids all resolve to the same
+     equal 1fr tracks, so one repeating background painted at the same track pitch lines up
+     with every row without a separator element per cell.
+     Semi-transparent and 1px: this has to sit behind ~40 rows of figures without competing
+     with them — the job is to guide the eye down a column, not to draw a table. */
+  /* No minmax floor: a 58px minimum could not fit 7 columns in a 360px phone's 336px of
+     content box, so the row wrapped 5+2 and the subtotal wrapped with it — which is what made
+     Color view look misaligned even after the cell counts matched. Now the cells hold only a
+     number, so equal 1fr tracks fit. */
   .metric-row {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); gap: 10px 4px;
+    display: grid; gap: 10px 4px;
     margin-bottom: var(--sp-2); padding: 9px 0; border-top: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
   }
@@ -434,15 +527,38 @@
   /* .table-scroll is deliberately NOT in this list: it needs `overflow: auto` for its sticky
      date header, and this rule comes later in the cascade, so including it here silently
      reverted that to hidden and un-stuck the header. */
-  .cards, .tablet-cards { border-radius: 8px; background: var(--panel); border: 1px solid var(--line); margin-bottom: var(--sp-4); overflow: hidden; }
-  /* The card views grow with their content and let the PAGE scroll — unlike the desktop
-     table, they are not inner scroll boxes, so they must not be squeezed by the flex column. */
+  .cards, .tablet-cards { border-radius: 8px; background: var(--panel); border: 1px solid var(--line); margin-bottom: var(--sp-4); }
+  /* These card lists are SCROLL BOXES, exactly like .table-scroll above — not auto-height
+     blocks that let the page scroll.
+     Sticky resolves against the nearest SCROLLING ancestor. `body` is height:100% and `main`
+     is a flex column with no overflow, so nothing above a card ever scrolled: the headers had
+     no scrollport to pin inside and just travelled with the content. Deleting the old
+     `overflow: hidden` did not fix that — it left the box with no scrolling ancestor at all
+     rather than the wrong one, which is why the headers still did not stick.
+     `flex: 1 1 auto; min-height: 0` takes a bounded height from the flex column (the same
+     mechanism .table-scroll uses, and for the same reason a measured `100vh - chrome` literal
+     was rejected there — it drifts on every layout change). `overflow: auto` then makes THIS
+     the scrollport the sticky rows resolve against. It also restores the corner clipping that
+     the removed `overflow: hidden` used to provide, so no clip-path is needed. */
+  /* Natural height, NOT a scroll box. `main` owns the vertical scrolling now; if these boxes
+     also scrolled, the grand-total strip below them would be pinned to the bottom of the flex
+     line and permanently on screen — the bug this replaced. Auto height also means no
+     `overflow` here, which is what lets the sticky rows inside resolve against main. */
   .cards, .tablet-cards { flex: 0 0 auto; }
 
   /* --- breakpoints: three distinct renderings, not one shrinking table --- */
   @media (max-width: 1000px) {
     .table-scroll { display: none; }
     .tablet-cards { display: block; }
+    /* Card views: MAIN does the vertical scrolling, not the card list.
+       While the card list was the scroll box it was a `flex: 1 1 auto` item, which places the
+       grand-total strip below it at the bottom of the flex line — so the totals stayed on
+       screen at every scroll position. Deleting the strip's `margin-top: auto` did not help,
+       because the flex line was placing it, not the margin.
+       With main scrolling and the list at natural height, the strip is simply the last thing
+       in the flow and is reached only at the end of the board. The sticky group and column
+       headers keep working: they now resolve against main, which is what scrolls. */
+    main { overflow-y: auto; overscroll-behavior: contain; }
   }
   @media (max-width: 620px) {
     .tablet-cards { display: none; }
@@ -520,12 +636,14 @@
      tracks resolve against a wider box and every total sits ~12px left of the figure it
      totals. The vertical padding stays a little larger to give the row weight as a footer. */
   .card-sub {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); gap: 10px 4px;
+    display: grid; gap: 10px 4px;
     padding: 11px var(--sp-3);
     /* A tinted brand wash instead of --panel-alt. At #f2f4f8 the band was within a few
        percent of the white card behind it, so the row that closes a group looked like just
-       another row. This reads as a boundary while staying quiet enough for a plant screen. */
-    background: #dbe0f2;
+       another row. This reads as a boundary while staying quiet enough for a plant screen.
+       background-COLOR, not the `background` shorthand: the shorthand resets background-image
+       and would wipe out the column separators painted by the shared rule above. */
+    background-color: #dbe0f2;
     border-top: 2px solid var(--primary); border-bottom: 1px solid var(--line);
   }
   .card-sub > div {
@@ -539,12 +657,38 @@
     font-family: var(--mono); font-variant-numeric: tabular-nums;
     font-size: var(--fs-md); font-weight: 800; color: var(--ink); line-height: 1;
   }
-  /* The label cell carries no number, so it anchors left and names the row. It is the one
-     span that survives the hide rule above — without it the row of figures is unlabelled. */
-  .card-sub .lead { align-items: flex-start; text-align: left; justify-content: center; }
-  .card-sub .lead span {
-    display: block; margin-bottom: 0; color: var(--primary);
-    font-size: var(--fs-xs); font-weight: 800;
+  /* "Subtotal" names the band from its own line above the figures, not from one of the grid
+     tracks. Every track now carries a number that has to line up with the column above it, so
+     spending one on a word would push all the figures off their columns. */
+  .card-sub-label {
+    background: #dbe0f2; border-top: 2px solid var(--primary);
+    padding: 6px var(--sp-3) 0; color: var(--primary);
+    font-family: var(--sans); font-size: var(--fs-2xs); font-weight: 800;
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  .card-sub-label + .card-sub { border-top: none; }
+
+  /* Vertical rules tying each figure to the column label above it.
+     Declared AFTER .metric-head, .metric-row and .card-sub — all three set a background, and
+     an earlier `background`/`background-color` later in the cascade would knock the image out.
+     One repeating gradient at the track pitch rather than a border per cell: the three grids
+     resolve to the same equal 1fr tracks, so a single pitch lands on every track edge.
+     content-box so the rules span exactly the columns' box, not the element's padding.
+     Semi-transparent 1px — this sits behind ~40 rows of figures and has to guide the eye down
+     a column without drawing a table over the data. */
+  .metric-head, .metric-row, .card-sub {
+    /* The line occupies the LAST 1px of each track, not the first. Drawn from 0 the gradient
+       puts a rule at x=0 — the outer left edge, a border around the data rather than a
+       separator between columns. (background-position cannot correct that: a percentage
+       resolves against `positioning area - image size`, which for a full-width repeating
+       gradient is zero, so the offset would be silently ignored.) Ending each repetition with
+       the line instead puts every rule on a track boundary, and the final one lands on the
+       right edge where content-box clips it. */
+    background-image: repeating-linear-gradient(to right,
+      transparent 0, transparent calc(100% / var(--cols) - 1px),
+      rgba(31,35,48,.10) calc(100% / var(--cols) - 1px), rgba(31,35,48,.10) calc(100% / var(--cols)));
+    background-clip: content-box; background-origin: content-box;
+    background-repeat: repeat;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -603,6 +747,50 @@ var LAST_ERROR = '';     // Why the last attempt failed, so the message can name
 var SERVING_STALE = false; // True when the worker fell back to its last-good copy.
 
 function colorFor(machine) { return PALETTE[machine] || 'var(--mx)'; }
+
+/* Product colour → hex. Keyed on the sheet's own strings, upper-cased and trimmed so a stray
+   space or a lowercase entry still matches. Deliberately NOT a CSS named-colour lookup: the
+   sheet says GOLDEN and SILVER, which CSS does not know, and letting the browser guess would
+   silently render some products as black. Anything unmapped gets the neutral chip instead —
+   an honest "no colour assigned" beats a confident wrong one. */
+var PRODUCT_COLORS = {
+  BLACK: '#1c1c1e', GREY: '#9195a1', SILVER: '#c7ccd6',
+  GREEN: '#2f8f4e', MAROON: '#7d2233', GOLDEN: '#c8952a'
+};
+function productHex(name) {
+  return PRODUCT_COLORS[String(name == null ? '' : name).trim().toUpperCase()] || '';
+}
+/* Ink chosen by measured WCAG contrast, never fixed. White text is legible on BLACK (17.0:1)
+   and MAROON (9.8:1) but not on SILVER (1.6:1) or GOLDEN (2.7:1); GREEN is the case that
+   proves the point — 4.07:1 on white FAILS AA, 4.64:1 on near-black passes. Every current
+   product colour clears AA once the ink is picked this way. */
+function relLum(hex) {
+  var v = [1, 3, 5].map(function (i) {
+    var c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+}
+function inkOn(hex) {
+  var l = relLum(hex);
+  var onWhite = 1.05 / (l + 0.05);
+  var onBlack = (l + 0.05) / (relLum('#111111') + 0.05);
+  return onWhite >= onBlack ? '#ffffff' : '#111111';
+}
+/* The swatch is decoration; the colour NAME stays in the DOM as the fact. Unmapped values get
+   .is-unknown, which is a dashed grey ring rather than a filled block, so "we don't know this
+   colour" never looks like "this product is grey". */
+/* The product CODE chip is itself the swatch — the colour fills the chip the reader is
+   already looking at, instead of adding a second object beside it. The colour NAME still
+   travels in the title and, on mobile, as its own metric cell: a filled chip alone is
+   unreadable to a colour-deficient reader and unsearchable by text. */
+function codeChipHtml(code, colorName, cls) {
+  var hex = productHex(colorName);
+  var label = String(colorName == null ? '' : colorName).trim();
+  var style = hex ? ' style="background:' + hex + ';color:' + inkOn(hex) + ';border-color:' + hex + '"' : '';
+  return '<span class="' + cls + (hex ? ' is-tinted' : '') + '"'
+    + style + (label ? ' title="' + esc(label) + '"' : '') + '>' + esc(code) + '</span>';
+}
 function fmtNum(n) { var v = Number(n); return isFinite(v) ? Math.round(v).toLocaleString('en-IN') : '—'; }
 /* Locale is pinned to en-IN rather than the device default: a manager whose phone is set to
    US locale was reading dates in a different order from the planner's sheet, on a surface
@@ -666,6 +854,22 @@ function paintFreshness() {
 }
 
 function applyFilter(rows) {
+  // Nothing left to dispatch is nothing to show. A row whose Balance has reached zero is
+  // complete, and a negative one is over-supplied — neither is work the board exists to
+  // schedule, and together they were 16 of 70 rows, pushing live jobs off the screen.
+  //
+  // This reverses an earlier decision to keep negative balances visible on the grounds that
+  // over-supply is a real state. It still is — but the sheet is where it should be reviewed,
+  // not the shop-floor board. Note the consequence: the group subtotals and the grand total
+  // now count only outstanding work, so they will NOT agree with the sheet's own column
+  // totals. That is the intended reading of this board, but it is a real difference.
+  //
+  // A blank or non-numeric Balance is KEPT: it means "not yet computed", not "nothing due",
+  // and hiding it would repeat the fault where a mid-recalculation NaN silently dropped rows.
+  rows = rows.filter(function (r) {
+    var b = Number(r.balance);
+    return !isFinite(b) || b > 0;
+  });
   if (!FILTER) return rows;
   var q = FILTER.toLowerCase();
   // PO is searchable too — By PO is the default view, yet filtering by a PO number used to
@@ -795,13 +999,13 @@ function compactBar(r) {
   var todayMark = (todayPct >= 0 && todayPct <= 100)
     ? '<i class="cbar-today" style="left:' + todayPct + '%"></i>' : '';
   return '<div class="cbar">' +
-    '<span class="cbar-lbl start">' + fmtDate(s) + '</span>' +
+    '<span class="cbar-lbl start is-filled">' + fmtDate(s) + '</span>' +
     '<div class="cbar-track">' + todayMark +
       '<div class="cbar-fill" style="left:' + left + '%;width:' + width + '%;background:' + color + '"></div>' +
       '<i class="cbar-dot" style="left:' + left + '%;background:' + color + '"></i>' +
       '<i class="cbar-dot" style="left:' + right + '%;background:' + color + '"></i>' +
     '</div>' +
-    '<span class="cbar-lbl end">' + fmtDate(e) + '</span>' +
+    '<span class="cbar-lbl end is-filled">' + fmtDate(e) + '</span>' +
   '</div>';
 }
 
@@ -833,10 +1037,17 @@ function render() {
     // An empty schedule and a filter that matched nothing are different facts. Saying
     // "no rows match" when the sheet is simply empty sends the reader hunting for a filter
     // that isn't set.
-    var emptyMsg = FILTER
-      ? '<div class="empty">No jobs match “' + esc(FILTER) + '”.'
-        + ' <button type="button" class="linkish" id="emptyClear">Clear filter</button></div>'
-      : '<div class="empty">No jobs scheduled.</div>';
+    // Three different facts, three different messages. "No jobs scheduled" when the sheet is
+    // actually full of completed rows would send the reader looking for missing data.
+    var emptyMsg;
+    if (FILTER) {
+      emptyMsg = '<div class="empty">No jobs match “' + esc(FILTER) + '”.'
+        + ' <button type="button" class="linkish" id="emptyClear">Clear filter</button></div>';
+    } else if (ROWS.length) {
+      emptyMsg = '<div class="empty">Nothing outstanding — every job on the sheet is fully supplied.</div>';
+    } else {
+      emptyMsg = '<div class="empty">No jobs scheduled.</div>';
+    }
     var mainEl = document.getElementById('main');
     mainEl.innerHTML = emptyMsg;
     mainEl.setAttribute('aria-busy', 'false');
@@ -875,7 +1086,8 @@ function render() {
       '<span class="sub">' + grp.rows.length + ' item' + (grp.rows.length === 1 ? '' : 's') + '</span></td></tr>';
     grp.rows.forEach(function (r) {
       var extraTd = showRmMb ? '<td class="num">' + fmtNum(r.rmReq) + '</td><td class="num">' + fmtNum(r.mb) + '</td>' : '';
-      html += '<tr><td class="data-col">' + esc(r.code) + '</td><td class="data-col">' + esc(r.name) + '</td>' +
+      html += '<tr><td class="data-col">' + codeChipHtml(r.code, r.color, 'code-chip') + '</td>' +
+        '<td class="data-col">' + esc(r.name) + '</td>' +
         '<td class="num">' + fmtNum(r.orderQty) + '</td><td class="num">' + fmtNum(r.supplied) + '</td>' +
         '<td class="num">' + fmtNum(r.readyStock) + '</td>' +
         '<td class="num' + (Number(r.balance) < 0 ? ' is-neg' : '') + '">' + fmtNum(r.balance) + '</td>' + extraTd +
@@ -892,13 +1104,21 @@ function render() {
 
   // ---- tablet: proportional single-bar rows, still dense/tabular ----
   html += '<div class="tablet-cards">';
+  // One label row for the whole list — a sibling of the groups, for the same reason as the
+  // mobile row above: sticky cannot escape its parent, so a per-group row would pin only
+  // within its own group and stack with every other group's copy.
+  html += '<div class="tcard-head">' +
+    '<div>Item</div><div>Qty</div><div>Supplied</div><div>Ready</div>' +
+    '<div>Balance</div><div>Days</div><div>Timeline</div></div>';
   order.forEach(function (k) {
     var grp = groups[k];
     var sub = sumRows(grp.rows);
     html += '<div class="tcard-group"><span>' + esc(grp.label) + '</span><span class="sub">' + grp.rows.length + ' item' + (grp.rows.length === 1 ? '' : 's') + '</span></div>';
     grp.rows.forEach(function (r) {
-      html += '<div class="tcard">' +
-        '<span class="code">' + esc(r.code) + '<small>' + esc(r.name) + '</small></span>' +
+      var tHex = productHex(r.color);
+      html += '<div class="tcard"' + (tHex ? ' style="--pc:' + tHex + '"' : '') + '>' +
+        '<span class="code">' + codeChipHtml(r.code, r.color, 'code-chip') +
+        '<small>' + esc(r.name) + '</small></span>' +
         '<span class="val"><span class="lbl">Qty</span>' + fmtNum(r.orderQty) + '</span>' +
         '<span class="val"><span class="lbl">Supplied</span>' + fmtNum(r.supplied) + '</span>' +
         '<span class="val"><span class="lbl">Ready</span>' + fmtNum(r.readyStock) + '</span>' +
@@ -922,52 +1142,88 @@ function render() {
   html += '</div>';
 
   // ---- mobile: stacked cards, minimal, one bar with start/end labels ----
+  //
+  // ONE definition of the columns, used by the sticky header, every card, and the subtotal.
+  // Previously each of the three emitted its own cells and they had to be kept in step by
+  // hand — which they were not: Color view carried seven cells per card against a five-cell
+  // subtotal, so every total sat under the wrong figure.
+  //
+  // Repeating "Qty / Supplied / Ready / …" inside all ~40 cards is what forced the grid to
+  // 58px minimum tracks and made 7 columns wrap to 5+2 on a 360px phone. The labels move to
+  // ONE sticky row per group, so the cells only have to fit a number and the whole row lands
+  // on one line — which is also what makes the card and its subtotal line up.
+  var cols = [
+    { label: 'Qty', cell: function (r) { return '<b>' + fmtNum(r.orderQty) + '</b>'; },
+      total: function (s) { return '<b>' + fmtNum(s.orderQty) + '</b>'; } },
+    { label: 'Supplied', cell: function (r) { return '<b>' + fmtNum(r.supplied) + '</b>'; },
+      total: function (s) { return '<b>' + fmtNum(s.supplied) + '</b>'; } },
+    { label: 'Ready', cell: function (r) { return '<b>' + fmtNum(r.readyStock) + '</b>'; },
+      total: function (s) { return '<b>' + fmtNum(s.readyStock) + '</b>'; } },
+    { label: 'Balance',
+      cell: function (r) { return '<b' + (Number(r.balance) < 0 ? ' class="is-neg"' : '') + '>' + fmtNum(r.balance) + '</b>'; },
+      total: function (s) { return '<b>' + fmtNum(s.balance) + '</b>'; } },
+    { label: 'Days', cell: function (r) { return '<b>' + esc(r.days || '—') + '</b>'; } },
+  ];
+  if (showRmMb) {
+    cols.push({ label: 'RM Req', cell: function (r) { return '<b>' + fmtNum(r.rmReq) + '</b>'; },
+      total: function (s) { return '<b>' + fmtNum(s.rmReq) + '</b>'; } });
+    cols.push({ label: 'MB', cell: function (r) { return '<b>' + fmtNum(r.mb) + '</b>'; },
+      total: function (s) { return '<b>' + fmtNum(s.mb) + '</b>'; } });
+  } else {
+    // Colour as text, since the card's left edge bar is unlabelled hue on its own. Dropped in
+    // Color view, where the group header already names it and the two extra metrics need room.
+    cols.push({ label: 'Color',
+      cell: function (r) { return '<b>' + (String(r.color || '').trim() ? esc(r.color) : '—') + '</b>'; } });
+  }
+  // Fixed track count, not auto-fit: auto-fit re-flows to whatever fits, so the card and the
+  // subtotal could resolve to different columns-per-row and stop lining up.
+  // --cols also drives the column separators, which are painted as one repeating gradient at
+  // the track pitch rather than as a border on every cell — same value, so the rules cannot
+  // land anywhere but on the track edges.
+  var colStyle = ' style="grid-template-columns:repeat(' + cols.length + ',1fr);--cols:' + cols.length + '"';
+  var headCells = cols.map(function (c) { return '<div>' + esc(c.label) + '</div>'; }).join('');
+
+  // The column labels pin for the WHOLE list (a sibling of the groups, emitted once), and each
+  // group's name pins BELOW them for the length of that group, handing off to the next group as
+  // it scrolls up. So the reader always has both: what the columns mean, and which group the
+  // rows on screen belong to.
+  // The two must occupy different offsets — when both sat at top:0 the group name covered the
+  // labels, and a per-group copy of the labels stacked one pinned row per group.
   html += '<div class="cards">';
+  html += '<div class="metric-head"' + colStyle + '>' + headCells + '</div>';
   order.forEach(function (k) {
     var grp = groups[k];
     var sub = sumRows(grp.rows);
     html += '<div class="card-group-head"><span>' + esc(grp.label) + '</span><span class="sub">' + grp.rows.length + ' item' + (grp.rows.length === 1 ? '' : 's') + '</span></div>';
     grp.rows.forEach(function (r) {
-      var extraCard = showRmMb
-        ? '<div><span>RM Req</span><b>' + fmtNum(r.rmReq) + '</b></div><div><span>MB</span><b>' + fmtNum(r.mb) + '</b></div>'
-        : '';
       // Machine chip: the mobile card's bar is a thin colour strip, far too small to identify
       // a machine by hue on a phone. The number states it.
       var mch = '<span class="mch" style="background:' + colorFor(r.machine) + '">M' + esc(r.machine) + '</span>';
       // In Product view the group header already names the product, so the per-item line shows the
       // PO number instead of repeating the product name.
+      // Product view shows the PO in the chip instead of the code, but the chip is still tinted:
+      // in this view the group is one product, so every card under the header IS that colour —
+      // the tint describes the row, not the PO number itself.
       var topLine = (VIEW === 'product')
-        ? '<span class="code">' + esc(r.po) + '</span>' + mch
-        : '<span class="code">' + esc(r.code) + '</span>' + mch
+        ? codeChipHtml(r.po, r.color, 'code') + mch
+        : codeChipHtml(r.code, r.color, 'code') + mch
           + '<span class="name">' + esc(r.name) + '</span>';
-      html += '<div class="card">' +
+      var mHex = productHex(r.color);
+      html += '<div class="card"' + (mHex ? ' style="--pc:' + mHex + '"' : '') + '>' +
         '<div class="card-top">' + topLine + '</div>' +
-        '<div class="metric-row">' +
-        '<div><span>Qty</span><b>' + fmtNum(r.orderQty) + '</b></div>' +
-        '<div><span>Supplied</span><b>' + fmtNum(r.supplied) + '</b></div>' +
-        '<div><span>Ready</span><b>' + fmtNum(r.readyStock) + '</b></div>' +
-        '<div><span>Balance</span><b' + (Number(r.balance) < 0 ? ' class="is-neg"' : '') + '>' + fmtNum(r.balance) + '</b></div>' +
-        '<div><span>Days</span><b>' + esc(r.days || '—') + '</b></div>' +
-        extraCard +
+        '<div class="metric-row"' + colStyle + '>' +
+        cols.map(function (c) { return '<div>' + c.cell(r) + '</div>'; }).join('') +
         '</div>' + compactBar(r) + '</div>';
     });
     // Mobile was the only rendering without a group subtotal — `sub` was computed and then
     // discarded — leaving the manager in transit, the person least able to add figures in
     // their head, as the only one asked to.
-    // Same cells in the same order as the metric row above, so every figure lands under its
-    // own column. The Days column has no meaningful total, so it holds the label instead of
-    // an invented number.
-    var subExtra = showRmMb
-      ? '<div><span>RM Req</span><b>' + fmtNum(sub.rmReq) + '</b></div>' +
-        '<div><span>MB</span><b>' + fmtNum(sub.mb) + '</b></div>'
-      : '';
-    html += '<div class="card-sub">' +
-      '<div><span>Qty</span><b>' + fmtNum(sub.orderQty) + '</b></div>' +
-      '<div><span>Supplied</span><b>' + fmtNum(sub.supplied) + '</b></div>' +
-      '<div><span>Ready</span><b>' + fmtNum(sub.readyStock) + '</b></div>' +
-      '<div><span>Balance</span><b>' + fmtNum(sub.balance) + '</b></div>' +
-      '<div class="lead"><span>Subtotal</span></div>' +
-      subExtra +
+    // Driven by the SAME column list as the cards and the sticky header, so the three grids
+    // cannot disagree about how many cells they hold. Columns with no meaningful total
+    // (Days, Color) render empty rather than an invented number.
+    html += '<div class="card-sub-label">Subtotal</div>' +
+      '<div class="card-sub"' + colStyle + '>' +
+      cols.map(function (c) { return '<div>' + (c.total ? c.total(sub) : '') + '</div>'; }).join('') +
       '</div>';
   });
   html += '</div>';

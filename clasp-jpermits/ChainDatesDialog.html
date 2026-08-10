@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root {
+    --ink: #1f2330; --dim: #5b6270; --line: #d8dce6; --panel: #f5f7fb;
+    --primary: #1e40af; --warn: #9a6700; --warnbg: #fff8e6; --change: #1e40af;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Roboto, Arial, sans-serif; font-size: 13px; color: var(--ink);
+    margin: 0; padding: 14px; display: flex; flex-direction: column; height: 100vh;
+  }
+  h2 { margin: 0 0 2px; font-size: 15px; }
+  .lede { color: var(--dim); font-size: 12px; margin-bottom: 10px; line-height: 1.45; }
+  .scroll { flex: 1 1 auto; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th {
+    position: sticky; top: 0; background: var(--panel); text-align: left; font-weight: 600;
+    padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .03em; color: var(--dim); z-index: 1;
+  }
+  td { padding: 5px 8px; border-bottom: 1px solid #eef0f5; font-variant-numeric: tabular-nums; }
+  tr.mhead td {
+    background: #eef1f8; font-weight: 700; color: var(--primary); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  .mono { font-family: ui-monospace, Consolas, monospace; }
+  .was { color: var(--dim); text-decoration: line-through; }
+  .now { color: var(--change); font-weight: 700; }
+  .same { color: var(--dim); }
+  .tag {
+    display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 3px;
+    text-transform: uppercase; letter-spacing: .03em;
+  }
+  .tag-anchor { background: #e3e9f7; color: var(--primary); }
+  .tag-warn { background: var(--warnbg); color: var(--warn); }
+  .note {
+    background: var(--warnbg); border: 1px solid #f0dfae; color: var(--warn);
+    padding: 8px 10px; border-radius: 6px; margin-top: 10px; font-size: 12px; line-height: 1.45;
+  }
+  .bar { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .count { flex: 1 1 auto; color: var(--dim); font-size: 12px; }
+  button {
+    font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line);
+    background: #fff; cursor: pointer;
+  }
+  button.primary { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+  button[disabled] { opacity: .5; cursor: default; }
+  .state { padding: 24px; text-align: center; color: var(--dim); }
+  .err { color: #b3261e; white-space: pre-wrap; text-align: left; }
+</style>
+</head>
+<body>
+  <h2>Chain Start/End Dates by Machine</h2>
+  <div class="lede">
+    Rows are read in sheet order. Each machine&rsquo;s first row keeps its own Start Date; every
+    row after it starts where the previous row ended. End = Start + Days, and Days is never changed.
+  </div>
+
+  <div class="scroll"><div id="body" class="state">Reading the sheet&hellip;</div></div>
+  <div id="notes"></div>
+
+  <div class="bar">
+    <span class="count" id="count"></span>
+    <button onclick="google.script.host.close()">Cancel</button>
+    <button class="primary" id="apply" disabled>Apply</button>
+  </div>
+
+<script>
+  var PLAN = null;
+
+  function d(iso) {
+    if (!iso) return '—';
+    var x = new Date(iso);
+    return String(x.getUTCDate()).padStart(2, '0') + ' ' +
+      ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][x.getUTCMonth()];
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  function render(plan) {
+    PLAN = plan;
+    var rows = plan.rows, s = plan.summary;
+    if (!rows.length) {
+      document.getElementById('body').className = 'state';
+      document.getElementById('body').textContent = 'No rows with a Machine and a Code to schedule.';
+      document.getElementById('count').textContent = s.scanned + ' rows scanned';
+      return;
+    }
+
+    var h = '<table><thead><tr><th>Row</th><th>Pri</th><th>Code</th><th>Days</th>' +
+      '<th>Start</th><th>End</th><th></th></tr></thead><tbody>';
+    var lastMachine = null;
+    rows.forEach(function (r) {
+      if (r.machine !== lastMachine) {
+        h += '<tr class="mhead"><td colspan="7">Machine ' + esc(r.machine) + '</td></tr>';
+        lastMachine = r.machine;
+      }
+      var tag = r.isAnchor
+        ? '<span class="tag tag-anchor">anchor</span>'
+        : (r.days === null ? '<span class="tag tag-warn">no days</span>' : '');
+      var cls = r.changed ? 'now' : 'same';
+      var startCell = (r.changed && r.oldStart && r.oldStart !== r.newStart)
+        ? '<span class="was">' + d(r.oldStart) + '</span> <span class="now">' + d(r.newStart) + '</span>'
+        : '<span class="' + cls + '">' + d(r.newStart) + '</span>';
+      var endCell = (r.changed && r.oldEnd && r.oldEnd !== r.newEnd)
+        ? '<span class="was">' + d(r.oldEnd) + '</span> <span class="now">' + d(r.newEnd) + '</span>'
+        : '<span class="' + cls + '">' + d(r.newEnd) + '</span>';
+      h += '<tr><td class="mono">' + r.row + '</td><td>' + esc(r.priority) + '</td>' +
+        '<td class="mono">' + esc(r.code) + '</td>' +
+        '<td>' + (r.days === null ? '—' : r.days) + '</td>' +
+        '<td class="mono">' + startCell + '</td><td class="mono">' + endCell + '</td>' +
+        '<td>' + tag + '</td></tr>';
+    });
+    h += '</tbody></table>';
+    document.getElementById('body').className = '';
+    document.getElementById('body').innerHTML = h;
+
+    var notes = '';
+    if (s.noDays) {
+      notes += '<div class="note">' + s.noDays + ' row(s) have no Days value. They are placed in the ' +
+        'sequence but occupy zero days, so the next row starts on the same date. Fill in Balance ' +
+        'or Output/Day for those rows if that is not what you want.</div>';
+    }
+    if (s.anchorFromToday) {
+      notes += '<div class="note">' + s.anchorFromToday + ' machine(s) had no Start Date on their ' +
+        'first row, so that chain begins today.</div>';
+    }
+    document.getElementById('notes').innerHTML = notes;
+
+    document.getElementById('count').textContent =
+      s.chained + ' rows chained · ' + s.changed + ' to change · ' +
+      s.unchanged + ' already correct · ' + s.anchors + ' anchors';
+
+    var btn = document.getElementById('apply');
+    btn.disabled = s.changed === 0;
+    btn.textContent = s.changed === 0 ? 'Nothing to change' : 'Apply ' + s.changed + ' change' + (s.changed === 1 ? '' : 's');
+  }
+
+  function fail(e) {
+    document.getElementById('body').className = 'state err';
+    document.getElementById('body').textContent = (e && e.message) ? e.message : String(e);
+  }
+
+  document.getElementById('apply').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Writing…';
+    google.script.run
+      .withSuccessHandler(function (res) {
+        btn.textContent = 'Wrote ' + res.written + ' row' + (res.written === 1 ? '' : 's');
+        var p = res.painted || {};
+        // A bar that cannot be drawn must say so. The day grid starts on the date in its own
+        // header, so a job that finished before that — or starts beyond the last column — has
+        // no cell to fill, and an empty row otherwise reads as "not scheduled".
+        if (p.noGrid || p.offGrid) {
+          var msg = p.noGrid
+            ? 'Dates written, but no Gantt day columns were found, so no bars were repainted.'
+            : p.offGrid + ' row(s) fall outside the day columns currently on the sheet, so they ' +
+              'have no bar. Their dates are still correct. Run "Rebuild Schedule Now" to move ' +
+              'the grid — note that it recomputes dates under its own rules.';
+          document.getElementById('notes').innerHTML = '<div class="note">' + msg + '</div>';
+          btn.textContent = 'Wrote ' + res.written + ' — see note';
+          return;   // stay open so the note is actually read
+        }
+        setTimeout(function () { google.script.host.close(); }, 900);
+      })
+      .withFailureHandler(function (e) {
+        fail(e);
+        btn.textContent = 'Failed';
+      })
+      // Guard against the sheet changing between preview and Apply: the server recomputes and
+      // refuses to write if the shape no longer matches what was shown here.
+      .applyChainedDates(PLAN ? PLAN.rows.length : null);
+  });
+
+  google.script.run.withSuccessHandler(render).withFailureHandler(fail).previewChainedDates();
+</script>
+</body>
+</html>

@@ -27,8 +27,12 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Dispatch Tools')
     .addItem('Import PO from PDF…', 'showPoImportDialog')
-    .addItem('Print Spec for Selected Invoice Column', 'printSpecForActiveInvoiceColumn')
+    // The old "Print Spec" item is off the menu — the Test Report replaces it. Its functions
+    // (printSpecForActiveInvoiceColumn / generateSpecPdfForInvoice_) are left defined and are
+    // still runnable from the Apps Script editor, so this is a one-line restore if needed.
+    .addItem('Print Test Report for Selected Invoice Column', 'printTestReportForActiveInvoiceColumn')
     .addSeparator()
+    .addItem('Chain Start/End Dates by Machine…', 'showChainDatesDialog')
     .addItem('Rebuild Schedule Now', 'rebuildScheduleNow')
     .addToUi();
 }
@@ -615,7 +619,7 @@ function rebuildScheduleNow() {
     return;
   }
   installDispatchScheduleColumns_(dispatchRSN);
-  callAction_('buildDispatchGanttSheet', {});
+  // The "Action" sheet rebuild is NOT called any more — see the note on buildDispatchGanttSheet.
   SpreadsheetApp.getUi().alert('Schedule rebuilt. Start Date cells now have a date picker.');
 }
 
@@ -660,7 +664,14 @@ function onEdit(e) {
   // changes scheduling, so skip the sort and go straight to the rebuild.
   if (!isStartDateEditOE) sortDispatchByMachinePriority_(sheet);
   installDispatchScheduleColumns_(sheet);
-  callAction_('buildDispatchGanttSheet', {});
+  // The "Action" sheet rebuild used to run here on EVERY qualifying edit. Nothing in the
+  // codebase reads that sheet — the only getSheetByName('Action') is the writer deleting it to
+  // recreate it — and it was the most expensive thing on this path: drop the sheet, reinsert
+  // it, write 8 columns per row, then paint a 60-day x 8-bucket (480 column) grid cell by cell.
+  // It also published a THIRD, wrong schedule: it chained every machine from today with no
+  // anchor, so its dates agreed with neither Dispatch nor the chained dates.
+  // buildDispatchGanttSheet is left defined and reachable via callAction_, so this is a
+  // one-line revert if the sheet turns out to be wanted.
 }
 
 function sortDispatchByMachinePriority_(dispatch) {
@@ -869,14 +880,30 @@ function installDispatchScheduleColumns_(dispatch) {
   dispatch.getRange(dataStartRow, scheduleCol + 1, scheduleRows.length, 2).setNumberFormat('dd-mmm-yy');
   applyStartDateValidation_(dispatch, scheduleCol + 1, dataStartRow, lastRow);
 
-  // 30-day Gantt bar grid, ONE bucket per day (compact — Output/Day already represents a full
+  // 45-day Gantt bar grid, ONE bucket per day (compact — Output/Day already represents a full
   // day of production, so a single colored cell per day is sufficient, no 3-hourly sub-buckets).
   var paletteISC = {
     1: '#9dc3e6', 2: '#a8d8b9', 3: '#f4b183', 4: '#c5a0dc',
     5: '#ff9999', 6: '#85d1e8', 7: '#e0e0a0',
   };
   var bucketStartCol = scheduleCol + scheduleHeaders.length + 1; // one blank spacer column
-  var bucketDaysISC = 30;
+  var bucketDaysISC = 45;
+
+  // The grid rolls forward from today, so its physical width must be at least bucketDaysISC or
+  // the paint below runs straight into whatever sits to the right (the 'Opening' / invoice
+  // block, which begins immediately after the last date column — there is NO gap). The one-time
+  // insert above only fires when the schedule block is absent entirely, so widening has to be
+  // handled here, every run. Measure the real width by finding where the date columns stop, then
+  // insert the shortfall BEFORE that boundary so the invoice block shifts right intact.
+  var gridHeaderISC = dispatch.getRange(labelRow, 1, 1, dispatch.getLastColumn()).getValues()[0];
+  var physicalDaysISC = 0;
+  while (/^\d{1,2}\/[A-Za-z]{3}$/.test(String(gridHeaderISC[bucketStartCol - 1 + physicalDaysISC] || '').trim())) {
+    physicalDaysISC++;
+  }
+  if (physicalDaysISC && physicalDaysISC < bucketDaysISC) {
+    dispatch.insertColumnsBefore(bucketStartCol + physicalDaysISC, bucketDaysISC - physicalDaysISC);
+  }
+
   var bucketDatesISC = [];
   var cursorISC = new Date(todayISC.getTime());
   for (var bd = 0; bd < bucketDaysISC; bd++) {
