@@ -1417,14 +1417,6 @@ function doGet(e) {
       getCounterOverview().machines.map(function (m) { return m.machine; }));
     return tplQ.evaluate().setTitle('Counter Entry — QR & Guide')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-  } else if (action === 'poImport') {
-    // The PO import as a page of its own. It runs as the account that deployed the web app,
-    // so nobody using it meets Google's permission screen — Drive access for the OCR step is
-    // a restricted scope that Google refuses outright on some accounts. What it may write is
-    // fixed server-side: see poImportCommit.
-    return HtmlService.createHtmlOutputFromFile('PoImportDialog')
-      .setTitle('Import Purchase Order')
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
   } else if (action === 'dashboard') {
     return HtmlService.createHtmlOutputFromFile('Dashboard')
       .setTitle('Dispatch Dashboard')
