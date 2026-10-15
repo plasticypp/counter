@@ -41,17 +41,23 @@ function showPoImportDialog() {
  */
 function poImportExtract(base64Pdf, filename) {
   var tempIds = [];
+  // Google's own errors ("Invalid argument") do not say which call failed, so every step
+  // records itself and the message names it.
+  var at = { step: 'decoding the upload' };
   try {
     var bytes = Utilities.base64Decode(base64Pdf);
     var blob = Utilities.newBlob(bytes, 'application/pdf', filename || 'po.pdf');
 
+    at.step = 'counting pages';
     var pages = poPageCount_(blob);
-    var text = poOcrPdfViaThumbnail_(blob, tempIds);
+    var text = poOcrPdfViaThumbnail_(blob, tempIds, at);
+    at.step = 'reading the line items';
     var parsed = poParseText_(text);
     if (!parsed.ok) {
       return { ok: false, error: parsed.error, rawText: text.slice(0, 2000) };
     }
 
+    at.step = 'checking the figures';
     parsed.pages = pages;
     parsed.check = poVerify_(parsed);
     parsed.masters = poCheckMasters_(parsed.lines);
@@ -59,7 +65,14 @@ function poImportExtract(base64Pdf, filename) {
     parsed.token = poRememberExtract_(parsed);
     return parsed;
   } catch (err) {
-    return { ok: false, error: String(err && err.message ? err.message : err) };
+    var msg = String(err && err.message ? err.message : err);
+    // Drive's OCR quota shows up two ways: a rate-limit error, or the image silently left
+    // unconverted (which then reads as "Invalid argument"). Both mean the same thing.
+    if (/rate limit exceeded for OCR|instead of a text document/i.test(msg)) {
+      return { ok: false, error: 'Google\'s limit on reading PDFs has been reached for now. ' +
+        'Nothing was imported. Try again in a few hours. (' + msg + ')' };
+    }
+    return { ok: false, error: 'Failed while ' + at.step + ': ' + msg };
   } finally {
     poCleanupTemp_(tempIds);
   }
@@ -71,12 +84,15 @@ function poImportExtract(base64Pdf, filename) {
  * The thumbnail is the whole trick: Google renders the PDF page for us, which is the one
  * step Apps Script cannot do itself.
  */
-function poOcrPdfViaThumbnail_(pdfBlob, tempIds) {
+function poOcrPdfViaThumbnail_(pdfBlob, tempIds, at) {
+  at = at || {};
   // 1. Store the PDF unconverted so Drive generates a thumbnail for it.
+  at.step = 'saving the PDF to Drive';
   var stored = DriveApp.createFile(pdfBlob.setName(PO_IMPORT_TEMP_PREFIX_ + 'src.pdf'));
   tempIds.push(stored.getId());
 
   // 2. Drive builds thumbnails asynchronously; poll rather than assume it is ready.
+  at.step = 'waiting for the Drive preview image';
   var link = null;
   for (var attempt = 0; attempt < 12 && !link; attempt++) {
     var meta = Drive.Files.get(stored.getId(), { fields: 'thumbnailLink' });
@@ -89,6 +105,7 @@ function poOcrPdfViaThumbnail_(pdfBlob, tempIds) {
 
   // 3. Ask for the largest render Drive will serve. It caps around 1024px wide, which
   //    testing showed is sufficient for this layout.
+  at.step = 'downloading the preview image';
   var imgUrl = link.split('=s')[0] + '=s2000';
   var res = UrlFetchApp.fetch(imgUrl, {
     headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
@@ -106,6 +123,7 @@ function poOcrPdfViaThumbnail_(pdfBlob, tempIds) {
   //    with "OCR is not supported for files of type application/vnd.google-apps.document".
   //    Conversion is requested through the convert/ocr options instead, and the upload keeps
   //    the blob's own image type.
+  at.step = 'running OCR on the preview image';
   var doc = Drive.Files.insert(
     { title: PO_IMPORT_TEMP_PREFIX_ + 'ocr' },
     res.getBlob(),
@@ -113,7 +131,32 @@ function poOcrPdfViaThumbnail_(pdfBlob, tempIds) {
   );
   tempIds.push(doc.id);
 
-  return DocumentApp.openById(doc.id).getBody().getText();
+  at.step = 'reading the OCR text';
+  return poOcrText_(doc);
+}
+
+// DocumentApp.openById fails with a bare "Invalid argument" on some OCR results (seen from the
+// web page, 2026-10-15). Drive's own plain-text export reads the same document without the
+// Docs service, so it is the fallback; if Drive did not convert at all, say what it returned.
+function poOcrText_(doc) {
+  try {
+    return DocumentApp.openById(doc.id).getBody().getText();
+  } catch (docErr) {
+    var meta = Drive.Files.get(doc.id, { fields: 'mimeType,exportLinks' });
+    var link = meta.exportLinks && meta.exportLinks['text/plain'];
+    if (!link) {
+      throw new Error('Google returned the page as ' + meta.mimeType + ' instead of a text document, ' +
+        'so OCR did not run (' + docErr.message + ').');
+    }
+    var res = UrlFetchApp.fetch(link, {
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+      muteHttpExceptions: true
+    });
+    if (res.getResponseCode() !== 200) {
+      throw new Error('Could not read the OCR text (HTTP ' + res.getResponseCode() + ').');
+    }
+    return res.getContentText();
+  }
 }
 
 // Only page 1 is rasterised, so a longer PO would silently lose its later lines. Count the
