@@ -1,10 +1,10 @@
 /**
  * Completed lines for the dashboard's Completed view, with the facts OTD/OTIF need.
  *
- * A line is COMPLETED when it has a Code but neither Machine nor Priority — the exact
- * complement of what the open board shows (getDashboardData_). That includes lines that
- * still carry a positive Balance: the planner un-prioritises a line when it is closed, so
- * the missing priority, not the Balance, is the signal. Decided 2026-10-15.
+ * A line is COMPLETED when it has a Code, neither Machine nor Priority, and something has been
+ * supplied against it. That includes lines that still carry a positive Balance: the planner
+ * un-prioritises a line when it is closed, so the missing priority, not the Balance, is the
+ * signal (decided 2026-10-15). A line with nothing supplied is a PO waiting to be planned.
  *
  * Only facts are sent; the browser computes OTD/OTIF so every view agrees on one rule.
  *   due       = PO Date + Settings "OTD Lead Time (days)"           (default 20)
@@ -36,7 +36,13 @@ function getCompletedData_(ss, headers, rows, nameByCode) {
     });
     return invoices;
   };
-  var isDone = function (r) { return blank(r[col.machine]) && blank(r[col.priority]); };
+  // Off the plan AND something was supplied. A PO line that has just been imported also has
+  // no Machine or Priority, but nothing has shipped against it — it is waiting to be planned,
+  // not completed.
+  var isDone = function (r) {
+    return blank(r[col.machine]) && blank(r[col.priority])
+      && (Number(r[col.supplied]) > 0 || invoicesOf(r).length > 0);
+  };
 
   // Every shipment on every line, open or completed, for the Summary tab: a month's dispatch
   // includes part-shipments against lines still on the plan. `line` is the row index, the

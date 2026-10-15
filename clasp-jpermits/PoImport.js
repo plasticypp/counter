@@ -34,6 +34,10 @@ function showPoImportDialog() {
 /**
  * Called from the dialog with a base64 PDF. Returns parsed lines plus a verification
  * verdict; writes nothing. The caller decides whether to import.
+ *
+ * The parsed lines are also kept server-side under a one-time token. Import takes only that
+ * token and the line numbers to keep, so what gets written is exactly what was read from the
+ * PDF — the page is open to anyone with the link, and must not be able to post its own lines.
  */
 function poImportExtract(base64Pdf, filename) {
   var tempIds = [];
@@ -41,15 +45,18 @@ function poImportExtract(base64Pdf, filename) {
     var bytes = Utilities.base64Decode(base64Pdf);
     var blob = Utilities.newBlob(bytes, 'application/pdf', filename || 'po.pdf');
 
+    var pages = poPageCount_(blob);
     var text = poOcrPdfViaThumbnail_(blob, tempIds);
     var parsed = poParseText_(text);
     if (!parsed.ok) {
       return { ok: false, error: parsed.error, rawText: text.slice(0, 2000) };
     }
 
+    parsed.pages = pages;
     parsed.check = poVerify_(parsed);
     parsed.masters = poCheckMasters_(parsed.lines);
     parsed.duplicate = poIsAlreadyImported_(parsed.poNumber);
+    parsed.token = poRememberExtract_(parsed);
     return parsed;
   } catch (err) {
     return { ok: false, error: String(err && err.message ? err.message : err) };
@@ -109,6 +116,25 @@ function poOcrPdfViaThumbnail_(pdfBlob, tempIds) {
   return DocumentApp.openById(doc.id).getBody().getText();
 }
 
+// Only page 1 is rasterised, so a longer PO would silently lose its later lines. Count the
+// page objects so that case is reported. 0 means the count is hidden inside compressed object
+// streams and is unknown; the printed-totals check still catches missing lines then.
+function poPageCount_(pdfBlob) {
+  var raw = pdfBlob.getDataAsString('ISO-8859-1');
+  return (raw.match(/\/Type\s*\/Page(?![a-zA-Z])/g) || []).length;
+}
+
+var PO_IMPORT_CACHE_PREFIX_ = 'poimp_';
+var PO_IMPORT_CACHE_SECONDS_ = 1800;
+
+function poRememberExtract_(parsed) {
+  var token = Utilities.getUuid();
+  CacheService.getScriptCache().put(PO_IMPORT_CACHE_PREFIX_ + token, JSON.stringify({
+    poNumber: parsed.poNumber, poDate: parsed.poDate, lines: parsed.lines
+  }), PO_IMPORT_CACHE_SECONDS_);
+  return token;
+}
+
 function poCleanupTemp_(ids) {
   // Scratch files must never accumulate in the user's Drive, including on the error path.
   (ids || []).forEach(function (id) {
@@ -147,13 +173,21 @@ function poParseText_(text) {
   // Reading them per code — rather than harvesting each column separately — keeps every
   // value tied to the product it belongs to, which is what a column-wise read cannot
   // guarantee once OCR drops a repeat.
+  //
+  // Read at EACH occurrence of the code, not at the first one in the text: a PO that lists the
+  // same code twice used to give both lines the first line's quantity. Only when nothing
+  // follows this occurrence does it fall back to the first place the code has a quantity.
   var qtys = [];
   var inlineRates = [];
-  codes.forEach(function (code) {
-    var m = text.match(new RegExp(code + '\\s+([\\d,]+)\\s*(?:NOS)?\\s*([\\d,]+\\.\\d{1,2})?', 'i'));
+  var lineAt = /^PM[A-Z]{3}\d{4}\s+([\d,]+)\s*(?:NOS)?\s*([\d,]+\.\d{1,2})?/i;
+  var codeRe = /\bPM[A-Z]{3}\d{4}\b/g;
+  var hit;
+  while ((hit = codeRe.exec(text)) !== null) {
+    var m = text.slice(hit.index).match(lineAt) ||
+      text.match(new RegExp(hit[0] + '\\s+([\\d,]+)\\s*(?:NOS)?\\s*([\\d,]+\\.\\d{1,2})?', 'i'));
     qtys.push(m ? poToNumber_(m[1]) : null);
     inlineRates.push(m && m[2] ? poToNumber_(m[2]) : null);
-  });
+  }
 
   // THE RATE COLUMN CANNOT BE READ POSITIONALLY.
   //
@@ -298,8 +332,15 @@ function poVerify_(parsed) {
   if (parsed.printed.amount !== null && Math.abs(sumAmt - parsed.printed.amount) > 2) {
     problems.push('Amounts sum to ' + sumAmt + ' but the PO prints ' + parsed.printed.amount);
   }
+  // Without the printed totals nothing proves every line was read, so this is a problem to
+  // check against the PDF, not a footnote.
   if (parsed.printed.qty === null && parsed.printed.amount === null) {
-    warnings.push('No printed totals were found, so the lines could not be cross-checked.');
+    problems.push('No printed totals were found, so there is no check that every line was read. ' +
+      'Count the lines against the PDF.');
+  }
+  if (parsed.pages > 1) {
+    problems.push('This PDF has ' + parsed.pages + ' pages. Only page 1 can be read, so any ' +
+      'lines on later pages are missing from this list.');
   }
   if (!parsed.poNumber) problems.push('PO number not found');
   if (!parsed.poDate) warnings.push('PO date not found — enter it by hand after importing.');
@@ -349,12 +390,32 @@ function poIsAlreadyImported_(poNumber) {
 }
 
 /**
- * Write the approved lines to Dispatch. Reuses the same field logic as the manual importer:
+ * Write the approved lines to Dispatch. `request` is { token, srs }: the token from
+ * poImportExtract and the Sr numbers left ticked. Reuses the same field logic as the manual importer:
  * Masters supplies everything the code determines, and Balance / RM Req / MB carry live
  * formulas rather than frozen constants.
  */
-function poImportCommit(payload) {
-  var lock = LockService.getDocumentLock();
+function poImportCommit(request) {
+  // The lines come from the server's own copy of the extract, never from the page: the
+  // request carries only the token and which line numbers were left ticked.
+  var cache = CacheService.getScriptCache();
+  var key = PO_IMPORT_CACHE_PREFIX_ + String(request && request.token);
+  var stored = cache.get(key);
+  if (!stored) {
+    return { ok: false, error: 'This review has expired or was already imported. Upload the PDF again.' };
+  }
+  var extract = JSON.parse(stored);
+  var keep = {};
+  ((request && request.srs) || []).forEach(function (sr) { keep[Number(sr)] = true; });
+  var payload = {
+    poNumber: extract.poNumber, poDate: extract.poDate,
+    lines: extract.lines.filter(function (l) { return keep[l.sr]; }),
+  };
+  if (!payload.lines.length) return { ok: false, error: 'No lines selected. Nothing imported.' };
+
+  // Script lock, not document lock: getDocumentLock() is null when this runs from the web
+  // page rather than from inside the sheet.
+  var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
     var ss = getSpreadsheet_();
@@ -427,6 +488,16 @@ function poImportCommit(payload) {
       dispatch.getRange(r, cRm).setFormula('=' + a1(cBal, r) + '*' + a1(cGms, r) + '/1000');
       dispatch.getRange(r, cMb).setFormula('=' + a1(cRm, r) + '*' + a1(cMbr, r) + '/100');
     });
+
+    // Supplied sums Opening and every invoice column on the row. Without it, invoices typed
+    // against a new line never reduce its Balance. Copy the row above's formula so the range
+    // matches the rest of the sheet; build it only if that row has none.
+    var supplied = startRow - 1 > labelRow ? dispatch.getRange(startRow - 1, cSup).getFormulaR1C1() : '';
+    if (!supplied) {
+      supplied = '=SUM(RC' + col('Opening') + ':RC' + dispatch.getLastColumn() + ')';
+    }
+    dispatch.getRange(startRow, cSup, payload.lines.length, 1).setFormulaR1C1(supplied);
+    cache.remove(key);
 
     if (poDate) {
       dispatch.getRange(startRow, col('PO Date'), payload.lines.length, 1)

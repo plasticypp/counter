@@ -823,6 +823,12 @@
      rel="noopener" aria-label="Open Counter Entry in a new tab">
     <span aria-hidden="true">⊞</span><span class="lbl">Counter Entry</span>
   </a>
+  <!-- PO import runs on the Apps Script web app as the deploying account, so it needs no
+       Google permission screen for whoever opens it. New tab, for the same reason as above. -->
+  <a class="counter-link" href="https://script.google.com/macros/s/AKfycbzCNGMGvSk9xpGkeSJGO5Rvbu76oQS7jfCmkqrvnxGnv8CF6XsgiexDeoJXoi8aUM7V/exec?action=poImport"
+     target="_blank" rel="noopener" aria-label="Import a purchase order PDF in a new tab">
+    <span aria-hidden="true">⇪</span><span class="lbl">Import PO</span>
+  </a>
   <!-- Freshness, not decoration: the dot reflects measured age and is always paired with
        the text stamp, never carrying the meaning on its own. -->
   <button type="button" class="clock" id="clock" title="Refresh now">

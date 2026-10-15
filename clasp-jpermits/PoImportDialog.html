@@ -10,7 +10,7 @@
     --sans: Roboto, -apple-system, "Segoe UI", Arial, sans-serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: var(--sans); font-size: 13px; color: var(--ink); padding: 16px; }
+  body { font-family: var(--sans); font-size: 13px; color: var(--ink); padding: 16px; max-width: 760px; margin: 0 auto; }
 
   .drop {
     border: 2px dashed var(--line); border-radius: 10px; padding: 34px 20px; text-align: center;
@@ -77,8 +77,8 @@
   </div>
   <input type="file" id="file" accept="application/pdf">
   <div class="note warn" style="margin-top:14px">
-    The PDF is sent to your own Google Drive to be read, then deleted. Nothing is written to
-    the sheet until you review the lines and approve them.
+    The PDF is read through Google Drive, then deleted. Nothing is written to the sheet until
+    you review the lines and approve them.
   </div>
 </div>
 
@@ -105,7 +105,7 @@
 <!-- 4. done -->
 <div class="step" id="step-done">
   <div id="done-body"></div>
-  <div class="foot"><button class="primary" onclick="google.script.host.close()">Close</button></div>
+  <div class="foot"><button onclick="reset()">Import another PO</button><button class="primary" onclick="closeOrReset()">Close</button></div>
 </div>
 
 <script>
@@ -117,6 +117,12 @@ function show(id) {
   });
 }
 function reset() { PARSED = null; document.getElementById('file').value = ''; show('step-pick'); }
+// Inside the sheet this is a dialog and closes; as the standalone web page there is nothing to
+// close, so it goes back to the start.
+function closeOrReset() {
+  try { google.script.host.close(); } catch (e) { /* web page */ }
+  reset();
+}
 function num(n, dp) {
   if (n === null || n === undefined) return '—';
   return Number(n).toLocaleString('en-IN', { minimumFractionDigits: dp || 0, maximumFractionDigits: dp || 0 });
@@ -255,7 +261,7 @@ function commit() {
         '<div class="note bad"><b>Import failed.</b><br>' + esc(err.message) + '</div>';
       show('step-done');
     })
-    .poImportCommit({ poNumber: PARSED.poNumber, poDate: PARSED.poDate, lines: keep });
+    .poImportCommit({ token: PARSED.token, srs: keep.map(function (l) { return l.sr; }) });
 }
 </script>
 </body>
