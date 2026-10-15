@@ -599,6 +599,8 @@
        figures that scroll beneath them. */
     .done-scroll th, .done-scroll td { position: static; box-shadow: none; }
     .done-scroll thead th { position: sticky; top: 0; left: auto; }
+    .sum-field { flex: 1 1 45%; }
+    .sum-field select { max-width: none; width: 100%; min-height: 44px; font-size: var(--fs-base); }
     .mode { flex: 1 1 50%; min-height: 44px; font-size: var(--fs-base); }
     .filter-wrap { order: 1; margin-left: 0; max-width: none; width: 100%; }
     .filter-wrap input { padding: 11px 12px 11px 34px; font-size: var(--fs-base); }
@@ -644,6 +646,40 @@
   .kpi b.st-bad { color: #b02a3c; }
   .done-scroll td.txt { text-align: left; font-family: var(--sans); font-weight: 500; }
   .done-scroll th.txt, .done-scroll th.invs { text-align: left; }
+
+  /* ---------------- Summary tab ---------------- */
+  .sum-bar {
+    display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); align-items: flex-end;
+    margin: 0 0 var(--sp-3); padding: var(--sp-3); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px;
+  }
+  .sum-field { display: flex; flex-direction: column; gap: 2px; }
+  .sum-field span {
+    font-family: var(--sans); font-size: var(--fs-2xs); font-weight: 700; color: var(--dim);
+    text-transform: uppercase; letter-spacing: .05em;
+  }
+  .sum-field select {
+    font-family: var(--sans); font-size: var(--fs-sm); color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; min-height: 36px; max-width: 220px;
+  }
+  .sum-field select:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+  .sum-title { font-family: var(--sans); font-size: var(--fs-lg); color: var(--primary); margin: 0 var(--sp-1) var(--sp-2); }
+  .kpi small { display: block; font-family: var(--sans); font-size: var(--fs-2xs); font-weight: 600; margin-top: 2px; }
+  .sum-bar, .sum-title, .trend { flex: 0 0 auto; }
+  .trend { display: grid; grid-template-columns: repeat(12, minmax(52px, 1fr)); gap: 4px; margin: var(--sp-3) 0; overflow-x: auto; }
+  .trend-m {
+    display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+    font-family: var(--mono); font-size: var(--fs-2xs); color: var(--dim);
+  }
+  .trend-m b { font-family: var(--sans); font-size: var(--fs-xs); color: var(--ink); }
+  .trend-m:disabled { cursor: default; opacity: .45; }
+  .trend-m.is-on { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+  .trend-m:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .trend-bar { display: flex; align-items: flex-end; width: 22px; height: 48px; background: var(--panel-alt); border-radius: 3px; }
+  .trend-bar i { display: block; width: 100%; background: var(--primary); border-radius: 3px; }
+  .share { display: inline-block; width: 64px; height: 8px; margin-right: 6px; background: var(--panel-alt); border-radius: 4px; vertical-align: middle; overflow: hidden; }
+  .share i { display: block; height: 100%; background: var(--primary); }
 
   .empty { padding: 48px 20px; text-align: center; color: var(--dim); font-family: var(--sans); font-weight: 500; font-size: var(--fs-base); }
   /* Recovery affordance inside empty/error states — previously the only way out of a failed
@@ -771,6 +807,7 @@
     <button class="tab" data-mode="done" data-view="dinvoice" role="tab" aria-selected="false" hidden>By Invoice</button>
     <button class="tab" data-mode="done" data-view="dpo" role="tab" aria-selected="false" hidden>By PO</button>
     <button class="tab" data-mode="done" data-view="dproduct" role="tab" aria-selected="false" hidden>By Product</button>
+    <button class="tab" data-mode="done" data-view="dsummary" role="tab" aria-selected="false" hidden>Summary</button>
   </div>
   <div class="filter-wrap">
     <label class="sr-only" for="filterInput">Filter by code, product name or PO</label>
@@ -1328,8 +1365,8 @@ function render() {
      OTD       = delivered <= due
      in full   = supplied >= order qty x (1 - tolerance)
      OTIF      = OTD and in full
-   A line with no invoice, or an invoice whose date is not on the Invoices tab, cannot be
-   judged; it is counted separately rather than silently scored as a pass or a fail.
+   A line with no invoice, an invoice whose date is not on the Invoices tab, or no Order Qty
+   cannot be judged; it is counted separately rather than silently scored as a pass or a fail.
    Dates travel as 'yyyy-MM-dd' IST day strings and are compared as whole days.
    --------------------------------------------------------------------------- */
 function dayNum(iso) {
@@ -1378,6 +1415,7 @@ function judgeLine(line, leadDays, tolerancePct) {
   if (!line.invoices.length) status = 'no invoice';
   else if (line.invoices.some(function (i) { return !i.date; })) status = 'invoice date missing';
   else if (!due) status = 'no PO date';
+  else if (!(line.orderQty > 0)) status = 'no order qty';
   var delivered = null, late = null, otd = null, otif = null;
   if (status === 'ok') {
     delivered = line.invoices.reduce(function (a, i) { return i.date > a ? i.date : a; }, '');
@@ -1388,13 +1426,17 @@ function judgeLine(line, leadDays, tolerancePct) {
   return { due: due, delivered: delivered, late: late, otd: otd, inFull: inFull, otif: otif, status: status };
 }
 
-function completedLines() {
+function judgedLines() {
   var lead = COMPLETED.leadDays, tol = COMPLETED.tolerancePct;
-  var lines = COMPLETED.lines.map(function (l) {
+  return COMPLETED.lines.map(function (l) {
     var j = judgeLine(l, lead, tol);
     Object.keys(l).forEach(function (k) { j[k] = l[k]; });
     return j;
   });
+}
+
+function completedLines() {
+  var lines = judgedLines();
   if (!FILTER) return lines;
   var q = FILTER.toLowerCase();
   return lines.filter(function (l) {
@@ -1407,7 +1449,7 @@ function scoreLines(lines) {
   var judged = lines.filter(function (l) { return l.status === 'ok'; });
   var count = function (k) { return judged.filter(function (l) { return l[k]; }).length; };
   return { lines: lines.length, judged: judged.length, otd: count('otd'), otif: count('otif'),
-    inFull: lines.filter(function (l) { return l.inFull; }).length };
+    inFull: count('inFull') };
 }
 
 /* Rows of the active tab, grouped. By Invoice lists one row per shipment, so a line split over
@@ -1494,6 +1536,7 @@ function renderCompleted() {
     mainEl.innerHTML = '<div class="empty">Completed lines are not available from the sheet yet.</div>';
     return;
   }
+  if (VIEW === 'dsummary') { renderSummary(mainEl); return; }
   var lines = completedLines();
   if (!lines.length) {
     mainEl.innerHTML = FILTER
@@ -1511,12 +1554,12 @@ function renderCompleted() {
     '<div><span>Completed lines</span><b>' + fmtNum(s.lines) + '</b></div>' +
     '<div><span>OTD</span><b class="' + pctTone(s.otd, s.judged) + '">' + pct(s.otd, s.judged) + '</b></div>' +
     '<div><span>OTIF</span><b class="' + pctTone(s.otif, s.judged) + '">' + pct(s.otif, s.judged) + '</b></div>' +
-    '<div><span>In full</span><b class="' + pctTone(s.inFull, s.lines) + '">' + pct(s.inFull, s.lines) + '</b></div>' +
+    '<div><span>In full</span><b class="' + pctTone(s.inFull, s.judged) + '">' + pct(s.inFull, s.judged) + '</b></div>' +
     '</div>';
   html += '<p class="kpi-note">Due = PO date + <b>' + esc(COMPLETED.leadDays) + ' days</b> · ' +
     'Delivered = last invoice date · In full = supplied ≥ <b>' + esc(100 - COMPLETED.tolerancePct) + '%</b> of order qty · ' +
     'OTD/OTIF judged on <b>' + s.judged + '</b> of ' + s.lines + ' lines' +
-    (unjudged ? ' (' + unjudged + ' have no invoice or no invoice date)' : '') +
+    (unjudged ? ' (' + unjudged + ' have no invoice, invoice date or order qty)' : '') +
     ' · change these on the sheet’s Settings tab.</p>';
 
   var cols = completedColumns();
@@ -1537,6 +1580,278 @@ function renderCompleted() {
   html += '</tbody></table></div>';
 
   mainEl.innerHTML = html;
+  var firstTh = mainEl.querySelector('.done-scroll thead th:first-child');
+  if (firstTh) document.documentElement.style.setProperty('--froz-1', firstTh.getBoundingClientRect().width + 'px');
+}
+
+/* ---------------------------------------------------------------------------
+   Summary tab — what was dispatched in a month or a year, per product.
+
+   Quantities and value come from SHIPMENTS (every invoice on every line, open lines
+   included), so a month's figure is what actually left the plant that month and agrees with
+   the invoices. OTIF/OTD come from completed LINES whose last invoice fell in the period.
+   Value = qty x PO rate, ex-GST. Every filter applies to the KPIs, the trend and the table
+   alike, so the figures on screen always describe the same slice.
+   --------------------------------------------------------------------------- */
+var MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var SUM = { year: 0, month: -1, po: '', brand: '', type: '', color: '', status: '', sort: 'qty' };
+var SUM_SORTS = { qty: 'Quantity', value: 'Value', invoices: 'Invoices', otif: 'OTIF %', code: 'Code' };
+var SUM_STATUSES = ['OTIF', 'Late', 'Short', 'Late + Short', 'Open line'];
+
+function productType(code) {
+  if (/^PMCAP/i.test(code)) return 'Cap';
+  if (/^PMCON/i.test(code)) return 'Bottle';
+  return 'Other';
+}
+function statusWord(l) {
+  if (l.status !== 'ok') return l.status;
+  if (l.otd && l.inFull) return 'OTIF';
+  if (!l.otd && !l.inFull) return 'Late + Short';
+  return l.otd ? 'Short' : 'Late';
+}
+function fmtLakh(v) {
+  return Math.abs(v) >= 100000 ? (v / 100000).toFixed(1) + ' L' : fmtNum(v);
+}
+
+// A shipment or a line passes the tab's filters. Both carry po/brand/code/color/name.
+function passesSum(x, status, invNos) {
+  if (SUM.po && x.po !== SUM.po) return false;
+  if (SUM.brand && x.brand !== SUM.brand) return false;
+  if (SUM.type && productType(x.code) !== SUM.type) return false;
+  if (SUM.color && x.color !== SUM.color) return false;
+  if (SUM.status && status !== SUM.status) return false;
+  if (!FILTER) return true;
+  var q = FILTER.toLowerCase();
+  return [x.code, x.name, x.po].concat(invNos).some(function (v) { return String(v).toLowerCase().indexOf(q) !== -1; });
+}
+
+// Period test on a 'yyyy-MM-dd' day. month -1 = whole year.
+// maxDay caps the day of month, so a month still in progress can be compared with the same
+// days of the month before rather than with the whole of it.
+function inPeriod(day, year, month, maxDay) {
+  if (!day) return false;
+  if (Number(day.slice(0, 4)) !== year) return false;
+  if (maxDay && Number(day.slice(8, 10)) > maxDay) return false;
+  return month === -1 || Number(day.slice(5, 7)) - 1 === month;
+}
+function prevPeriod(year, month) {
+  if (month === -1) return { year: year - 1, month: -1 };
+  return month === 0 ? { year: year - 1, month: 11 } : { year: year, month: month - 1 };
+}
+
+function summaryData() {
+  var lines = judgedLines();
+  var lineById = {};
+  lines.forEach(function (l) { lineById[l.id] = l; });
+  var ships = COMPLETED.shipments.filter(function (s) {
+    var status = s.done ? (lineById[s.line] ? statusWord(lineById[s.line]) : '') : 'Open line';
+    return passesSum(s, status, [s.inv]);
+  });
+  var doneLines = lines.filter(function (l) {
+    return passesSum(l, statusWord(l), l.invoices.map(function (i) { return i.no; }));
+  });
+  return { ships: ships, lines: doneLines };
+}
+
+function periodTotals(d, year, month, maxDay) {
+  var ships = d.ships.filter(function (s) { return inPeriod(s.date, year, month, maxDay); });
+  var lines = d.lines.filter(function (l) { return l.status === 'ok' && inPeriod(l.delivered, year, month, maxDay); });
+  var t = { qty: 0, value: 0, invoices: {}, products: {}, pos: {}, ships: ships, lines: lines };
+  ships.forEach(function (s) {
+    t.qty += s.qty; t.value += s.qty * s.rate;
+    t.invoices[s.inv] = 1; t.products[s.code] = 1; t.pos[s.po] = 1;
+  });
+  t.otd = lines.filter(function (l) { return l.otd; }).length;
+  t.otif = lines.filter(function (l) { return l.otif; }).length;
+  t.avgLate = lines.length ? lines.reduce(function (a, l) { return a + l.late; }, 0) / lines.length : null;
+  return t;
+}
+
+function deltaHtml(now, before, against) {
+  if (!before) return '<small class="is-na">no earlier period</small>';
+  var p = Math.round(((now - before) / before) * 100);
+  if (p === 0) return '<small class="is-na">same as ' + against + '</small>';
+  return '<small class="' + (p > 0 ? 'late-good' : 'late-bad') + '">' + (p > 0 ? '▲ ' : '▼ ') + Math.abs(p) + '% vs ' + against + '</small>';
+}
+
+function sumSelect(key, label, options, allLabel) {
+  var html = '<label class="sum-field"><span>' + esc(label) + '</span><select data-sum="' + key + '">';
+  if (allLabel) html += '<option value="">' + esc(allLabel) + '</option>';
+  options.forEach(function (o) {
+    var v = typeof o === 'object' ? o.value : o, t = typeof o === 'object' ? o.text : o;
+    html += '<option value="' + esc(v) + '"' + (String(SUM[key]) === String(v) ? ' selected' : '') +
+      (o.disabled ? ' disabled' : '') + '>' + esc(t) + '</option>';
+  });
+  return html + '</select></label>';
+}
+
+function uniqueSorted(list) {
+  return Array.from(new Set(list.filter(function (v) { return v !== '' && v != null; })))
+    .sort(function (a, b) { return String(a).localeCompare(String(b), 'en', { numeric: true }); });
+}
+
+function summaryControls(all, monthsWithData) {
+  var years = uniqueSorted(all.map(function (s) { return s.date ? Number(s.date.slice(0, 4)) : null; }));
+  var months = [{ value: -1, text: 'Whole year' }].concat(MONTH_NAMES.map(function (m, i) {
+    return { value: i, text: m, disabled: !monthsWithData[i] };
+  }));
+  return '<div class="sum-bar">' +
+    sumSelect('year', 'Year', years) +
+    sumSelect('month', 'Month', months) +
+    sumSelect('po', 'PO', uniqueSorted(all.map(function (s) { return s.po; })), 'All POs') +
+    sumSelect('brand', 'Brand', uniqueSorted(all.map(function (s) { return s.brand; })), 'All brands') +
+    sumSelect('type', 'Type', uniqueSorted(all.map(function (s) { return productType(s.code); })), 'All types') +
+    sumSelect('color', 'Colour', uniqueSorted(all.map(function (s) { return s.color; })), 'All colours') +
+    sumSelect('status', 'Status', SUM_STATUSES, 'All statuses') +
+    sumSelect('sort', 'Sort by', Object.keys(SUM_SORTS).map(function (k) { return { value: k, text: SUM_SORTS[k] }; })) +
+    '<button type="button" class="linkish" id="sumReset">Reset</button>' +
+    '</div>';
+}
+
+function summaryKpis(t, prev, against) {
+  var avg = t.avgLate === null ? '—'
+    : Math.abs(Math.round(t.avgLate)) + (Math.round(t.avgLate) > 0 ? ' d late' : ' d early');
+  return '<div class="grand kpi">' +
+    '<div><span>Dispatched</span><b>' + fmtNum(t.qty) + '</b>' + deltaHtml(t.qty, prev.qty, against) + '</div>' +
+    '<div><span>Value (ex-GST)</span><b>₹' + fmtLakh(t.value) + '</b>' + deltaHtml(t.value, prev.value, against) + '</div>' +
+    '<div><span>Invoices</span><b>' + Object.keys(t.invoices).length + '</b><small class="is-na">' +
+      Object.keys(t.pos).length + ' POs</small></div>' +
+    '<div><span>Products</span><b>' + Object.keys(t.products).length + '</b></div>' +
+    '<div><span>OTIF</span><b class="' + pctTone(t.otif, t.lines.length) + '">' + pct(t.otif, t.lines.length) + '</b>' +
+      '<small class="is-na">OTD ' + pct(t.otd, t.lines.length) + ' · ' + t.otif + ' of ' + t.lines.length + ' lines</small></div>' +
+    '<div><span>Avg vs due</span><b class="' + (t.avgLate > 0 ? 'st-bad' : 'st-good') + '">' + avg + '</b></div>' +
+    '</div>';
+}
+
+// One bar per month of the year; the tallest month fills the track. Click to open that month.
+function summaryTrend(d, year) {
+  var months = MONTH_NAMES.map(function (m, i) { return periodTotals(d, year, i); });
+  var max = Math.max.apply(null, months.map(function (t) { return t.qty; }).concat([1]));
+  var html = '<div class="trend" role="group" aria-label="Months of ' + year + '">';
+  months.forEach(function (t, i) {
+    var on = SUM.month === i;
+    html += '<button type="button" class="trend-m' + (on ? ' is-on' : '') + '" data-month="' + i + '"' +
+      (t.qty ? '' : ' disabled') + '>' +
+      '<span class="trend-bar"><i style="height:' + Math.round((t.qty / max) * 100) + '%"></i></span>' +
+      '<b>' + MONTH_NAMES[i] + '</b><span>' + (t.qty ? fmtLakh(t.qty) : '—') + '</span>' +
+      (t.lines.length ? '<span class="st ' + pctTone(t.otif, t.lines.length) + '">' + pct(t.otif, t.lines.length) + '</span>' : '<span></span>') +
+      '</button>';
+  });
+  return html + '</div>';
+}
+
+function summaryRows(t) {
+  var byCode = {};
+  t.ships.forEach(function (s) {
+    var p = byCode[s.code] || (byCode[s.code] = { code: s.code, name: s.name, color: s.color, brand: s.brand,
+      qty: 0, value: 0, invoices: {}, months: {}, lines: 0, otif: 0 });
+    p.qty += s.qty; p.value += s.qty * s.rate; p.invoices[s.inv] = 1;
+    var m = Number(s.date.slice(5, 7)) - 1;
+    p.months[m] = (p.months[m] || 0) + s.qty;
+  });
+  t.lines.forEach(function (l) {
+    var p = byCode[l.code];
+    if (!p) return;
+    p.lines++; if (l.otif) p.otif++;
+  });
+  var rows = Object.keys(byCode).map(function (k) { return byCode[k]; });
+  var key = SUM.sort;
+  rows.sort(function (a, b) {
+    if (key === 'code') return String(a.code).localeCompare(String(b.code), 'en', { numeric: true });
+    if (key === 'invoices') return Object.keys(b.invoices).length - Object.keys(a.invoices).length;
+    if (key === 'otif') return (b.lines ? b.otif / b.lines : -1) - (a.lines ? a.otif / a.lines : -1);
+    return b[key] - a[key];
+  });
+  return rows;
+}
+
+function summaryTable(t, isYear) {
+  var rows = summaryRows(t);
+  if (!rows.length) return '<div class="empty">Nothing dispatched in this period with these filters.</div>';
+  var monthCols = isYear
+    ? MONTH_NAMES.map(function (m, i) { return i; }).filter(function (i) { return rows.some(function (r) { return r.months[i]; }); })
+    : [];
+  var html = '<div class="done-scroll"><table><thead><tr>' +
+    '<th scope="col">Code</th><th scope="col">Item</th><th scope="col" class="txt">Brand</th>' +
+    monthCols.map(function (i) { return '<th scope="col">' + MONTH_NAMES[i] + '</th>'; }).join('') +
+    '<th scope="col">Dispatched</th><th scope="col">Value</th><th scope="col" class="txt">Share</th>' +
+    '<th scope="col">Invoices</th><th scope="col">OTIF</th></tr></thead><tbody>';
+  rows.forEach(function (r) {
+    var share = t.qty ? (r.qty / t.qty) * 100 : 0;
+    html += '<tr><td class="data-col">' + codeChipHtml(r.code, r.color, 'code-chip') + '</td>' +
+      '<td class="data-col">' + esc(r.name) + '</td><td class="txt">' + esc(r.brand || '—') + '</td>' +
+      monthCols.map(function (i) { return '<td>' + (r.months[i] ? fmtNum(r.months[i]) : '<span class="is-na">—</span>') + '</td>'; }).join('') +
+      '<td><b>' + fmtNum(r.qty) + '</b></td><td>₹' + fmtLakh(r.value) + '</td>' +
+      '<td class="txt"><span class="share"><i style="width:' + Math.max(1, Math.round(share)) + '%"></i></span>' +
+        Math.round(share) + '%</td>' +
+      '<td>' + Object.keys(r.invoices).length + '</td>' +
+      '<td>' + (r.lines ? '<span class="st ' + pctTone(r.otif, r.lines) + '">' + pct(r.otif, r.lines) + '</span>' : '<span class="is-na">—</span>') + '</td></tr>';
+  });
+  var monthTotals = monthCols.map(function (i) {
+    return '<td>' + fmtNum(rows.reduce(function (a, r) { return a + (r.months[i] || 0); }, 0)) + '</td>';
+  }).join('');
+  html += '<tr class="subtotal-row"><td colspan="3">Total · ' + rows.length + ' products</td>' + monthTotals +
+    '<td>' + fmtNum(t.qty) + '</td><td>₹' + fmtLakh(t.value) + '</td><td class="txt">100%</td>' +
+    '<td>' + Object.keys(t.invoices).length + '</td><td>' + pct(t.otif, t.lines.length) + '</td></tr>';
+  return html + '</tbody></table></div>';
+}
+
+// First visit: the current month if anything shipped in it, else the latest month that did.
+function defaultPeriod(all) {
+  var days = all.map(function (s) { return s.date; }).filter(Boolean).sort();
+  if (!days.length) return;
+  var nowIst = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 7);
+  var pick = days.some(function (d) { return d.slice(0, 7) === nowIst; }) ? nowIst : days[days.length - 1].slice(0, 7);
+  SUM.year = Number(pick.slice(0, 4));
+  SUM.month = Number(pick.slice(5, 7)) - 1;
+}
+
+function renderSummary(mainEl) {
+  var all = COMPLETED.shipments || [];
+  if (!all.length) {
+    mainEl.innerHTML = '<div class="empty">No dispatches recorded yet.</div>';
+    return;
+  }
+  if (!SUM.year) defaultPeriod(all);
+  var d = summaryData();
+  var isYear = SUM.month === -1;
+  var monthsWithData = {};
+  all.forEach(function (s) { if (s.date && Number(s.date.slice(0, 4)) === SUM.year) monthsWithData[Number(s.date.slice(5, 7)) - 1] = 1; });
+  var t = periodTotals(d, SUM.year, SUM.month);
+  var p = prevPeriod(SUM.year, SUM.month);
+  // The current month is still running: compare it with the same days of last month.
+  var nowIst = new Date(Date.now() + 5.5 * 3600 * 1000);
+  var running = !isYear && SUM.year === nowIst.getUTCFullYear() && SUM.month === nowIst.getUTCMonth();
+  var prev = periodTotals(d, p.year, p.month, running ? nowIst.getUTCDate() : 0);
+  var against = running ? 'same days last month' : (isYear ? 'previous year' : 'previous month');
+  var title = (isYear ? 'Year ' : MONTH_NAMES[SUM.month] + ' ') + SUM.year +
+    (running ? ' · month to date (1–' + nowIst.getUTCDate() + ')' : '');
+
+  mainEl.innerHTML = summaryControls(all, monthsWithData) +
+    '<h2 class="sum-title">' + esc(title) + '</h2>' +
+    summaryKpis(t, prev, against) +
+    summaryTrend(d, SUM.year) +
+    summaryTable(t, isYear);
+
+  mainEl.querySelectorAll('[data-sum]').forEach(function (el) {
+    el.addEventListener('change', function () {
+      var k = el.dataset.sum;
+      SUM[k] = (k === 'year' || k === 'month') ? Number(el.value) : el.value;
+      if (k === 'year') SUM.month = -1;   // a new year opens on the whole year
+      render();
+    });
+  });
+  mainEl.querySelectorAll('.trend-m').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var m = Number(b.dataset.month);
+      SUM.month = SUM.month === m ? -1 : m;   // clicking the open month goes back to the year
+      render();
+    });
+  });
+  document.getElementById('sumReset').addEventListener('click', function () {
+    SUM = { year: 0, month: -1, po: '', brand: '', type: '', color: '', status: '', sort: 'qty' };
+    render();
+  });
   var firstTh = mainEl.querySelector('.done-scroll thead th:first-child');
   if (firstTh) document.documentElement.style.setProperty('--froz-1', firstTh.getBoundingClientRect().width + 'px');
 }

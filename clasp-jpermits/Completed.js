@@ -20,35 +20,67 @@ function getCompletedData_(ss, headers, rows, nameByCode) {
     po: headers.indexOf('PO Number'), poDate: headers.indexOf('PO Date'),
     code: headers.indexOf('Code'), color: headers.indexOf('Color'),
     orderQty: headers.indexOf('Order Qty'), supplied: headers.indexOf('Supplied'),
+    rate: headers.indexOf('Rate'), shape: headers.indexOf('Shape'),
   };
   var invoiceCols = invoiceColumns_(headers);
   var invoiceDates = readInvoiceDates_(ss);
   var settings = readCompletedSettings_(ss);
 
   var blank = function (v) { return v === '' || v === null || v === undefined || String(v).trim() === ''; };
-  var lines = rows.filter(function (r) {
-    return r[col.code] && blank(r[col.machine]) && blank(r[col.priority]);
-  }).map(function (r) {
+  var invoicesOf = function (r) {
     var invoices = [];
     invoiceCols.forEach(function (c) {
       var qty = Number(String(r[c.index]).replace(/,/g, ''));
       if (!qty) return;
       invoices.push({ no: c.no, date: invoiceDates[c.no] || null, qty: qty });
     });
-    return {
-      po: r[col.po], poDate: completedDay_(r[col.poDate]),
-      code: r[col.code], name: nameByCode[r[col.code]] || r[col.code],
-      color: r[col.color] || '(no color)',
-      orderQty: Number(r[col.orderQty]) || 0, supplied: Number(r[col.supplied]) || 0,
-      invoices: invoices,
-    };
+    return invoices;
+  };
+  var isDone = function (r) { return blank(r[col.machine]) && blank(r[col.priority]); };
+
+  // Every shipment on every line, open or completed, for the Summary tab: a month's dispatch
+  // includes part-shipments against lines still on the plan. `line` is the row index, the
+  // same id the completed lines carry, so a shipment can show its line's OTIF status.
+  var shipments = [];
+  rows.forEach(function (r, i) {
+    if (!r[col.code]) return;
+    invoicesOf(r).forEach(function (inv) {
+      shipments.push({
+        line: i, done: isDone(r), inv: inv.no, date: inv.date, qty: inv.qty,
+        rate: Number(r[col.rate]) || 0, code: r[col.code],
+        name: nameByCode[r[col.code]] || r[col.code], color: r[col.color] || '(no color)',
+        brand: brandOf_(r, col), po: r[col.po],
+      });
+    });
+  });
+
+  var lines = [];
+  rows.forEach(function (r, i) {
+    if (!r[col.code] || !isDone(r)) return;
+    lines.push(completedLine_(r, i, col, nameByCode, invoicesOf(r)));
   });
 
   return {
     leadDays: settings.leadDays,
     tolerancePct: settings.tolerancePct,
     lines: lines,
+    shipments: shipments,
   };
+}
+
+function completedLine_(r, id, col, nameByCode, invoices) {
+  return {
+    id: id, po: r[col.po], poDate: completedDay_(r[col.poDate]),
+    code: r[col.code], name: nameByCode[r[col.code]] || r[col.code],
+    color: r[col.color] || '(no color)', brand: brandOf_(r, col),
+    orderQty: Number(r[col.orderQty]) || 0, supplied: Number(r[col.supplied]) || 0,
+    invoices: invoices,
+  };
+}
+
+// The Shape column holds the customer brand the bottle is moulded for (VARROC, ARZOL, myTVS).
+function brandOf_(r, col) {
+  return col.shape === -1 ? '' : String(r[col.shape] || '').trim();
 }
 
 // Invoice columns are every named column to the right of 'Opening'. 'Opening' itself is
