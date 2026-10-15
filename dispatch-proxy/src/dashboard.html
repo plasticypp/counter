@@ -666,6 +666,7 @@
   .sum-title { font-family: var(--sans); font-size: var(--fs-lg); color: var(--primary); margin: 0 var(--sp-1) var(--sp-2); }
   .kpi small { display: block; font-family: var(--sans); font-size: var(--fs-2xs); font-weight: 600; margin-top: 2px; }
   .sum-bar, .sum-title, .trend { flex: 0 0 auto; }
+  .sum-scope .mode { min-height: 36px; padding: 7px 14px; }
   .trend { display: grid; grid-template-columns: repeat(12, minmax(52px, 1fr)); gap: 4px; margin: var(--sp-3) 0; overflow-x: auto; }
   .trend-m {
     display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px;
@@ -1379,12 +1380,13 @@ function fmtIso(iso) {
   return new Date(dayNum(iso) * 86400000)
     .toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'UTC' });
 }
-// Days against due: late in red with a plus, early or on the day in green.
+// Days against due, in words rather than signed numbers: "15d early", "31d late".
 function fmtLate(n) {
   if (n === null) return '<span class="is-na">—</span>';
+  if (n === 0) return '<span class="late-good">on due date</span>';
   return n > 0
-    ? '<span class="late-bad">+' + n + 'd</span>'
-    : '<span class="late-good">' + (n < 0 ? '−' + (-n) : '0') + 'd</span>';
+    ? '<span class="late-bad">' + n + 'd late</span>'
+    : '<span class="late-good">' + (-n) + 'd early</span>';
 }
 function pct(n, d) { return d ? Math.round((n / d) * 100) + '%' : '—'; }
 
@@ -1494,7 +1496,7 @@ function completedColumns() {
   if (VIEW === 'dinvoice') {
     return base.concat([
       { th: 'Shipped', td: function (r) { return r.inv ? fmtNum(r.inv.qty) : '—'; } },
-      { th: 'Days late', td: function (r) { return fmtLate(shipmentLate(r)); } },
+      { th: 'vs Due', td: function (r) { return fmtLate(shipmentLate(r)); } },
       { th: 'Line status', td: function (r) { return statusBadge(r.line); }, cls: 'txt' },
     ]);
   }
@@ -1506,7 +1508,7 @@ function completedColumns() {
       return r.line.invoices.length ? esc(r.line.invoices.map(function (i) { return i.no; }).join(', ')) : '—';
     }, cls: 'invs' },
     { th: 'Delivered', td: function (r) { return fmtIso(r.line.delivered); } },
-    { th: 'Days late', td: function (r) { return fmtLate(r.line.late); } },
+    { th: 'vs Due', td: function (r) { return fmtLate(r.line.late); } },
     { th: 'Status', td: function (r) { return statusBadge(r.line); }, cls: 'txt' },
   ]);
 }
@@ -1667,11 +1669,12 @@ function periodTotals(d, year, month, maxDay) {
   return t;
 }
 
+// Against the previous period, stated as a positive figure: "112% of previous month",
+// "57% of same days last month". Green when it matches or beats it, plain otherwise.
 function deltaHtml(now, before, against) {
-  if (!before) return '<small class="is-na">no earlier period</small>';
-  var p = Math.round(((now - before) / before) * 100);
-  if (p === 0) return '<small class="is-na">same as ' + against + '</small>';
-  return '<small class="' + (p > 0 ? 'late-good' : 'late-bad') + '">' + (p > 0 ? '▲ ' : '▼ ') + Math.abs(p) + '% vs ' + against + '</small>';
+  if (!before) return '<small class="is-na">first period on record</small>';
+  var p = Math.round((now / before) * 100);
+  return '<small class="' + (p >= 100 ? 'late-good' : 'is-na') + '">' + (p > 100 ? '▲ ' : '') + p + '% of ' + against + '</small>';
 }
 
 function sumSelect(key, label, options, allLabel) {
@@ -1695,7 +1698,12 @@ function summaryControls(all, monthsWithData) {
   var months = [{ value: -1, text: 'Whole year' }].concat(MONTH_NAMES.map(function (m, i) {
     return { value: i, text: m, disabled: !monthsWithData[i] };
   }));
+  var isYear = SUM.month === -1;
   return '<div class="sum-bar">' +
+    '<div class="sum-field"><span>View</span><div class="modes sum-scope" role="group" aria-label="Summary period">' +
+      '<button type="button" class="mode' + (isYear ? '' : ' active') + '" data-scope="month" aria-pressed="' + !isYear + '">Month</button>' +
+      '<button type="button" class="mode' + (isYear ? ' active' : '') + '" data-scope="year" aria-pressed="' + isYear + '">Year</button>' +
+    '</div></div>' +
     sumSelect('year', 'Year', years) +
     sumSelect('month', 'Month', months) +
     sumSelect('po', 'PO', uniqueSorted(all.map(function (s) { return s.po; })), 'All POs') +
@@ -1838,6 +1846,16 @@ function renderSummary(mainEl) {
       var k = el.dataset.sum;
       SUM[k] = (k === 'year' || k === 'month') ? Number(el.value) : el.value;
       if (k === 'year') SUM.month = -1;   // a new year opens on the whole year
+      render();
+    });
+  });
+  mainEl.querySelectorAll('[data-scope]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (b.dataset.scope === 'year') { SUM.month = -1; render(); return; }
+      if (SUM.month !== -1) return;
+      // Month view opens on the latest month of the chosen year that has dispatches.
+      var months = Object.keys(monthsWithData).map(Number);
+      SUM.month = months.length ? Math.max.apply(null, months) : 0;
       render();
     });
   });
