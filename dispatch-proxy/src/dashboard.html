@@ -662,7 +662,11 @@
     font-family: var(--sans); font-size: var(--fs-sm); color: var(--ink); background: var(--panel);
     border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; min-height: 36px; max-width: 220px;
   }
-  .sum-field select:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+  .sum-field input[type=date] {
+    font-family: var(--sans); font-size: var(--fs-sm); color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; min-height: 36px;
+  }
+  .sum-field select:focus-visible, .sum-field input:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
   .sum-title { font-family: var(--sans); font-size: var(--fs-lg); color: var(--primary); margin: 0 var(--sp-1) var(--sp-2); }
   .kpi small { display: block; font-family: var(--sans); font-size: var(--fs-2xs); font-weight: 600; margin-top: 2px; }
   .sum-bar, .sum-title, .trend { flex: 0 0 auto; }
@@ -681,6 +685,22 @@
   .trend-bar i { display: block; width: 100%; background: var(--primary); border-radius: 3px; }
   .share { display: inline-block; width: 64px; height: 8px; margin-right: 6px; background: var(--panel-alt); border-radius: 4px; vertical-align: middle; overflow: hidden; }
   .share i { display: block; height: 100%; background: var(--primary); }
+
+  /* ---------------- download menu ---------------- */
+  .export-wrap { position: relative; }
+  .export-wrap[hidden] { display: none; }
+  .export-wrap .counter-link { cursor: pointer; padding: 0 14px; font-size: var(--fs-md); }
+  .export-menu {
+    position: absolute; left: 0; top: calc(100% + 4px); z-index: 40; min-width: 160px;
+    display: flex; flex-direction: column; padding: 4px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(22,24,29,.14);
+  }
+  .export-menu[hidden] { display: none; }
+  .export-menu button {
+    text-align: left; padding: 10px 12px; min-height: 40px; border: none; border-radius: 6px;
+    background: none; font-family: var(--sans); font-size: var(--fs-sm); font-weight: 600; color: var(--ink); cursor: pointer;
+  }
+  .export-menu button:hover, .export-menu button:focus-visible { background: var(--panel-alt); outline: none; }
 
   .empty { padding: 48px 20px; text-align: center; color: var(--dim); font-family: var(--sans); font-weight: 500; font-size: var(--fs-base); }
   /* Recovery affordance inside empty/error states — previously the only way out of a failed
@@ -814,6 +834,18 @@
     <label class="sr-only" for="filterInput">Filter by code, product name or PO</label>
     <input type="text" id="filterInput" placeholder="filter code, name or PO…">
     <button type="button" class="clear-x" id="filterClear" aria-label="Clear filter">✕</button>
+  </div>
+  <!-- One download control for the Completed tabs: exports exactly what the current tab shows,
+       filters included, as Excel or PDF. -->
+  <div class="export-wrap" id="exportWrap" hidden>
+    <button type="button" class="counter-link" id="exportBtn" aria-haspopup="menu" aria-expanded="false"
+            aria-label="Download this view" title="Download this view">
+      <span aria-hidden="true">⤓</span>
+    </button>
+    <div class="export-menu" id="exportMenu" role="menu" hidden>
+      <button type="button" role="menuitem" data-export="xlsx">Excel (.xlsx)</button>
+      <button type="button" role="menuitem" data-export="pdf">PDF</button>
+    </div>
   </div>
   <!-- Counter Entry lives on its own GitHub Pages wrapper; operators normally arrive by
        scanning a per-machine QR, so this is the way in when a sticker is missing or when
@@ -1443,8 +1475,58 @@ function judgedLines() {
   });
 }
 
+/* Filters for By Invoice / By PO / By Product. The date range applies to the delivered date
+   (in By Invoice, each invoice's own date) or to the PO date. Dates are 'yyyy-MM-dd', so
+   plain string comparison orders them correctly. */
+var LIST_DEFAULT = { status: '', brand: '', type: '', color: '', dateBy: 'delivered', from: '', to: '' };
+var LIST = Object.assign({}, LIST_DEFAULT);
+
+function inRange(day) {
+  if (!LIST.from && !LIST.to) return true;
+  if (!day) return false;
+  return (!LIST.from || day >= LIST.from) && (!LIST.to || day <= LIST.to);
+}
+
+function passesList(l) {
+  if (LIST.status && statusWord(l) !== LIST.status) return false;
+  if (LIST.brand && l.brand !== LIST.brand) return false;
+  if (LIST.type && productType(l.code) !== LIST.type) return false;
+  if (LIST.color && l.color !== LIST.color) return false;
+  if (LIST.dateBy === 'po') return inRange(l.poDate);
+  // By Invoice judges the range per invoice (see completedGroups); a line stays if any of
+  // its invoices falls in it.
+  if (VIEW === 'dinvoice') return !(LIST.from || LIST.to) || l.invoices.some(function (i) { return inRange(i.date); });
+  return inRange(l.delivered);
+}
+
+function listControls() {
+  var all = judgedLines();
+  var dateField = function (key, label) {
+    return '<label class="sum-field"><span>' + label + '</span><input type="date" data-list="' + key +
+      '" value="' + esc(LIST[key]) + '"></label>';
+  };
+  return '<div class="sum-bar">' +
+    sumSelect('status', 'Status', uniqueSorted(all.map(statusWord)), 'All statuses', LIST, 'data-list') +
+    sumSelect('brand', 'Brand', uniqueSorted(all.map(function (l) { return l.brand; })), 'All brands', LIST, 'data-list') +
+    sumSelect('type', 'Type', uniqueSorted(all.map(function (l) { return productType(l.code); })), 'All types', LIST, 'data-list') +
+    sumSelect('color', 'Colour', uniqueSorted(all.map(function (l) { return l.color; })), 'All colours', LIST, 'data-list') +
+    sumSelect('dateBy', 'Date by', [{ value: 'delivered', text: VIEW === 'dinvoice' ? 'Invoice date' : 'Delivered date' },
+      { value: 'po', text: 'PO date' }], '', LIST, 'data-list') +
+    dateField('from', 'From') + dateField('to', 'To') +
+    '<button type="button" class="linkish" id="listReset">Reset</button>' +
+    '</div>';
+}
+
+function bindListControls(mainEl) {
+  mainEl.querySelectorAll('[data-list]').forEach(function (el) {
+    el.addEventListener('change', function () { LIST[el.dataset.list] = el.value; render(); });
+  });
+  var rs = document.getElementById('listReset');
+  if (rs) rs.addEventListener('click', function () { LIST = Object.assign({}, LIST_DEFAULT); render(); });
+}
+
 function completedLines() {
-  var lines = judgedLines();
+  var lines = judgedLines().filter(passesList);
   if (!FILTER) return lines;
   var q = FILTER.toLowerCase();
   return lines.filter(function (l) {
@@ -1474,6 +1556,7 @@ function completedGroups(lines) {
     if (VIEW === 'dinvoice') {
       if (!l.invoices.length) { add('~none', 'No invoice recorded', '', { line: l, inv: null }); return; }
       l.invoices.forEach(function (i) {
+        if (LIST.dateBy !== 'po' && !inRange(i.date)) return;
         add(i.no, i.no + ' · ' + fmtIso(i.date), i.date || '', { line: l, inv: i });
       });
     } else if (VIEW === 'dpo') {
@@ -1547,18 +1630,19 @@ function renderCompleted() {
   if (VIEW === 'dsummary') { renderSummary(mainEl); return; }
   var lines = completedLines();
   if (!lines.length) {
-    mainEl.innerHTML = FILTER
+    mainEl.innerHTML = listControls() + (FILTER
       ? '<div class="empty">No completed lines match “' + esc(FILTER) + '”.'
         + ' <button type="button" class="linkish" id="emptyClear">Clear filter</button></div>'
-      : '<div class="empty">No completed lines on the sheet.</div>';
+      : '<div class="empty">No completed lines match these filters.</div>');
     var ec = document.getElementById('emptyClear');
     if (ec) ec.addEventListener('click', clearFilter);
+    bindListControls(mainEl);
     return;
   }
 
   var s = scoreLines(lines);
   var unjudged = s.lines - s.judged;
-  var html = '<div class="grand kpi">' +
+  var html = listControls() + '<div class="grand kpi">' +
     '<div><span>Completed lines</span><b>' + fmtNum(s.lines) + '</b></div>' +
     '<div><span>OTD</span><b class="' + pctTone(s.otd, s.judged) + '">' + pct(s.otd, s.judged) + '</b></div>' +
     '<div><span>OTIF</span><b class="' + pctTone(s.otif, s.judged) + '">' + pct(s.otif, s.judged) + '</b></div>' +
@@ -1588,6 +1672,7 @@ function renderCompleted() {
   html += '</tbody></table></div>';
 
   mainEl.innerHTML = html;
+  bindListControls(mainEl);
   var firstTh = mainEl.querySelector('.done-scroll thead th:first-child');
   if (firstTh) document.documentElement.style.setProperty('--froz-1', firstTh.getBoundingClientRect().width + 'px');
 }
@@ -1683,12 +1768,15 @@ function deltaHtml(now, before, against) {
   return '<small class="' + (p >= 100 ? 'late-good' : 'is-na') + '">' + (p > 100 ? '▲ ' : '') + p + '% of ' + against + '</small>';
 }
 
-function sumSelect(key, label, options, allLabel) {
-  var html = '<label class="sum-field"><span>' + esc(label) + '</span><select data-sum="' + key + '">';
+// One dropdown in a filter bar. `state` is the object it edits (SUM for Summary, LIST for the
+// line views) and `attr` the data attribute its change handler looks for.
+function sumSelect(key, label, options, allLabel, state, attr) {
+  state = state || SUM;
+  var html = '<label class="sum-field"><span>' + esc(label) + '</span><select ' + (attr || 'data-sum') + '="' + key + '">';
   if (allLabel) html += '<option value="">' + esc(allLabel) + '</option>';
   options.forEach(function (o) {
     var v = typeof o === 'object' ? o.value : o, t = typeof o === 'object' ? o.text : o;
-    html += '<option value="' + esc(v) + '"' + (String(SUM[key]) === String(v) ? ' selected' : '') +
+    html += '<option value="' + esc(v) + '"' + (String(state[key]) === String(v) ? ' selected' : '') +
       (o.disabled ? ' disabled' : '') + '>' + esc(t) + '</option>';
   });
   return html + '</select></label>';
@@ -1880,6 +1968,150 @@ function renderSummary(mainEl) {
   if (firstTh) document.documentElement.style.setProperty('--froz-1', firstTh.getBoundingClientRect().width + 'px');
 }
 
+/* ---------------------------------------------------------------------------
+   Download the current Completed tab as Excel or PDF.
+
+   Read from the rendered table rather than rebuilt from data, so the file always matches the
+   screen: same filters, same rows, same totals. Libraries load on first use only.
+   --------------------------------------------------------------------------- */
+var EXPORT_LIBS = {
+  xlsx: ['https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'],
+  pdf: ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'],
+};
+var loadedScripts = {};
+function loadScript(url) {
+  if (!loadedScripts[url]) {
+    loadedScripts[url] = new Promise(function (resolve, reject) {
+      var el = document.createElement('script');
+      el.src = url; el.onload = resolve;
+      el.onerror = function () { delete loadedScripts[url]; reject(new Error('could not load ' + url)); };
+      document.head.appendChild(el);
+    });
+  }
+  return loadedScripts[url];
+}
+
+var VIEW_NAMES = { dinvoice: 'By Invoice', dpo: 'By PO', dproduct: 'By Product', dsummary: 'Summary' };
+var GROUP_NAMES = { dinvoice: 'Invoice', dpo: 'PO', dproduct: 'Product' };
+
+function activeFilterText() {
+  var parts = [];
+  if (FILTER) parts.push('Search: ' + FILTER);
+  var state = VIEW === 'dsummary' ? SUM : LIST;
+  Object.keys(state).forEach(function (k) {
+    if (k === 'year' || k === 'month' || k === 'sort' || k === 'dateBy' || !state[k]) return;
+    parts.push(k.charAt(0).toUpperCase() + k.slice(1) + ': ' + state[k]);
+  });
+  if (VIEW !== 'dsummary' && (LIST.from || LIST.to)) parts.push('(dates by ' + (LIST.dateBy === 'po' ? 'PO date' : 'delivery') + ')');
+  return parts.length ? 'Filters: ' + parts.join(' · ') : 'Filters: none';
+}
+
+function viewForExport() {
+  var tbl = document.querySelector('#main .done-scroll table');
+  if (!tbl) return null;
+  var grouped = VIEW !== 'dsummary';
+  // textContent, not innerText: headers are upper-cased by CSS, and the file should carry the words.
+  var heads = Array.from(tbl.querySelectorAll('thead th')).map(function (th) { return th.textContent.trim(); });
+  var rows = [], group = '';
+  Array.from(tbl.querySelectorAll('tbody tr')).forEach(function (tr) {
+    if (tr.classList.contains('group-row')) { group = tr.querySelector('td > span').innerText.trim(); return; }
+    var cells = [];
+    Array.from(tr.children).forEach(function (td) {
+      cells.push(td.innerText.trim());
+      for (var i = 1; i < (td.colSpan || 1); i++) cells.push('');
+    });
+    rows.push(grouped ? [group].concat(cells) : cells);
+  });
+  var title = document.querySelector('#main .sum-title');
+  return {
+    title: 'YPP Dispatch · Completed · ' + VIEW_NAMES[VIEW] + (title ? ' · ' + title.innerText.trim() : ''),
+    filters: activeFilterText(),
+    kpis: Array.from(document.querySelectorAll('#main .kpi > div')).map(function (d) {
+      return d.querySelector('span').textContent.trim() + ': ' + d.querySelector('b').textContent.trim();
+    }).join('   '),
+    columns: grouped ? [GROUP_NAMES[VIEW]].concat(heads) : heads,
+    rows: rows,
+  };
+}
+
+function exportFileName(ext) {
+  var day = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  return 'ypp-dispatch-' + VIEW_NAMES[VIEW].toLowerCase().replace(/\s+/g, '-') + '-' + day + '.' + ext;
+}
+
+// Excel keeps plain numbers as numbers so they can be summed; everything else stays text.
+function xlsxCell(v) {
+  var t = String(v).replace(/,/g, '');
+  return /^\d+(\.\d+)?$/.test(t) ? Number(t) : v;
+}
+
+function exportXlsx(v) {
+  var aoa = [[v.title], [v.filters], [v.kpis], []].concat([v.columns])
+    .concat(v.rows.map(function (r) { return r.map(xlsxCell); }));
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = v.columns.map(function (c, i) {
+    var w = Math.max(c.length, ...v.rows.map(function (r) { return String(r[i] || '').length; }));
+    return { wch: Math.min(48, w + 2) };
+  });
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, VIEW_NAMES[VIEW]);
+  XLSX.writeFile(wb, exportFileName('xlsx'));
+}
+
+// The PDF's built-in font covers Latin-1 only, so symbols are spelled out or dropped.
+function pdfText(t) {
+  return String(t).replace(/₹/g, 'Rs ').replace(/≥/g, '>=').replace(/[–—]/g, '-')
+    .replace(/[✓✗◷◐▲▼⤓]/g, '').replace(/[^\x00-\xFF]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function exportPdf(v) {
+  var doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  doc.setFontSize(13); doc.text(pdfText(v.title), 32, 34);
+  doc.setFontSize(8.5); doc.setTextColor(90);
+  doc.text(pdfText(v.filters), 32, 50);
+  if (v.kpis) doc.text(pdfText(v.kpis), 32, 63);
+  doc.autoTable({
+    head: [v.columns.map(pdfText)],
+    body: v.rows.map(function (r) { return r.map(pdfText); }),
+    startY: 74, margin: { left: 32, right: 32 },
+    styles: { fontSize: 7, cellPadding: 3, overflow: 'linebreak' },
+    headStyles: { fillColor: [30, 64, 175] },
+    didParseCell: function (data) {
+      if (data.section === 'body' && /^Total/i.test(String(data.row.raw[VIEW === 'dsummary' ? 0 : 1] || ''))) {
+        data.cell.styles.fontStyle = 'bold';
+      }
+    },
+  });
+  doc.save(exportFileName('pdf'));
+}
+
+function runExport(kind) {
+  var v = viewForExport();
+  if (!v) { alert('Nothing to download in this view.'); return; }
+  // In order, not in parallel: the table plugin attaches itself to jsPDF as it loads, so
+  // jsPDF must already be there.
+  EXPORT_LIBS[kind].reduce(function (p, url) { return p.then(function () { return loadScript(url); }); }, Promise.resolve())
+    .then(function () { kind === 'xlsx' ? exportXlsx(v) : exportPdf(v); })
+    .catch(function (err) { alert('Download failed: ' + (err && err.message ? err.message : err)); });
+}
+
+(function bindExportMenu() {
+  var btn = document.getElementById('exportBtn'), menu = document.getElementById('exportMenu');
+  function close() { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    menu.hidden = !menu.hidden;
+    btn.setAttribute('aria-expanded', menu.hidden ? 'false' : 'true');
+    if (!menu.hidden) menu.querySelector('button').focus();
+  });
+  menu.querySelectorAll('[data-export]').forEach(function (b) {
+    b.addEventListener('click', function () { close(); runExport(b.dataset.export); });
+  });
+  document.addEventListener('click', function (e) { if (!menu.hidden && !menu.contains(e.target)) close(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !menu.hidden) { close(); btn.focus(); } });
+})();
+
 /* The second frozen column has to start exactly where the first one ends, and the Code
    column's width depends on its content. Measure rather than guess. */
 function measureFrozenOffset() {
@@ -1918,6 +2150,7 @@ document.querySelectorAll('.tab').forEach(function (btn) {
 document.querySelectorAll('.mode').forEach(function (btn) {
   btn.addEventListener('click', function () {
     MODE = btn.dataset.mode;
+    document.getElementById('exportWrap').hidden = MODE !== 'done';
     VIEW = VIEW_BY_MODE[MODE];
     document.querySelectorAll('.mode').forEach(function (b) {
       var on = b === btn;
