@@ -842,6 +842,45 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
   }
+
+  /* ---------------- one scroll on phones and tablets ----------------
+     Measured 2026-10-15 at 390x844 and 360x640: the Completed table was its own scroll box
+     inside the scrolling page, squeezed to whatever height was left — 50px on Summary at 844,
+     2px at 640 — so it was effectively hidden, and scrolling inside the sliver fought the page.
+     Below 1000px the table no longer scrolls vertically: the page is the one vertical scroller
+     and the table only scrolls sideways. Declared last so it wins on source order. */
+  @media (max-width: 1000px) {
+    .done-scroll { flex: none; min-height: 0; overflow-x: auto; overflow-y: hidden; }
+  }
+  /* Phones: the 269px top bar also scrolled nowhere, leaving 371px of a 640px screen for the
+     data. Let the whole document scroll and the top bar scroll away with it; scrolling to the
+     top brings the tabs back. The card views' pinned column labels then pin to the screen. */
+  @media (max-width: 620px) {
+    html, body { height: auto; }
+    body { min-height: 100%; }
+    header { position: static; }
+    main { overflow: visible; flex: none; }
+    /* The machine colour key was pinned too, and on a phone its wrapped chips covered the
+       pinned column labels and the first cards. It scrolls away now; the machine number is
+       printed on every card anyway. */
+    .legend { position: static; }
+    /* Swiping a Completed table sideways slid the product off-screen, leaving figures with no
+       row identity. Pin just the narrow Code column; group rows (PO / invoice / product) pin
+       their label the same way. */
+    .done-scroll td:first-child, .done-scroll thead th:first-child {
+      position: sticky; left: 0; z-index: 2; background: var(--panel);
+      box-shadow: 6px 0 6px -6px rgba(22,24,29,.18);
+    }
+    .done-scroll thead th:first-child { z-index: 4; background: var(--panel-alt); }
+    .done-scroll .group-row td:first-child { background: var(--panel-alt); box-shadow: none; position: static; }
+    /* The heading cell spans the whole table, so pinning the cell does nothing; pin its label. */
+    .done-scroll .group-row td > span:first-child { position: sticky; left: 0; z-index: 1; display: inline-block; padding: 0 10px 0 12px; margin-left: -12px; background: var(--panel-alt); }
+    .done-scroll .subtotal-row td:first-child { background: #dbe0f2; }
+  }
+  /* 360px phones: five-digit quantities in adjacent card cells ran into each other. */
+  @media (max-width: 380px) {
+    .metric-row b, .card-sub b { font-size: var(--fs-sm); letter-spacing: -.02em; }
+  }
 </style>
 </head>
 <body>
