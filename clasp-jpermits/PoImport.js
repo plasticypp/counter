@@ -536,10 +536,16 @@ function poImportCommit(request) {
     // against a new line never reduce its Balance. Copy the row above's formula so the range
     // matches the rest of the sheet; build it only if that row has none.
     var supplied = startRow - 1 > labelRow ? dispatch.getRange(startRow - 1, cSup).getFormulaR1C1() : '';
-    if (!supplied) {
-      supplied = '=SUM(RC' + col('Opening') + ':RC' + dispatch.getLastColumn() + ')';
+    if (supplied) {
+      dispatch.getRange(startRow, cSup, payload.lines.length, 1).setFormulaR1C1(supplied);
+    } else {
+      // Open-ended to the right (=SUM(BP9:9)), so invoice columns added later still count.
+      var openA1 = a1(col('Opening'), startRow).replace(/[0-9]+$/, '');
+      dispatch.getRange(startRow, cSup, payload.lines.length, 1).setFormulas(payload.lines.map(function (l, i) {
+        var r = startRow + i;
+        return ['=SUM(' + openA1 + r + ':' + r + ')'];
+      }));
     }
-    dispatch.getRange(startRow, cSup, payload.lines.length, 1).setFormulaR1C1(supplied);
     cache.remove(key);
 
     if (poDate) {

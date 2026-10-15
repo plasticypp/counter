@@ -24,6 +24,7 @@ function getCompletedData_(ss, headers, rows, nameByCode) {
   };
   var invoiceCols = invoiceColumns_(headers);
   var invoiceDates = readInvoiceDates_(ss);
+  recordNewInvoiceDates_(ss, invoiceCols, rows, invoiceDates);
   var settings = readCompletedSettings_(ss);
 
   var blank = function (v) { return v === '' || v === null || v === undefined || String(v).trim() === ''; };
@@ -103,7 +104,10 @@ function invoiceColumns_(headers) {
 }
 
 // Invoice Number -> 'yyyy-MM-dd', read by header name so a raw Zoho export pasted into the
-// Invoices tab works as well as the trimmed one. Void invoices are skipped.
+// Invoices tab works as well as the trimmed one. Void invoices are skipped. A real date beats
+// an automatic one, so pasting a Zoho export under the auto rows corrects them.
+var AUTO_INVOICE_STATUS_ = 'Auto (first seen)';
+
 function readInvoiceDates_(ss) {
   var sheet = ss.getSheetByName('Invoices');
   if (!sheet || sheet.getLastRow() < 2) return {};
@@ -111,15 +115,53 @@ function readInvoiceDates_(ss) {
   var h = values[0].map(function (v) { return String(v).trim(); });
   var iNo = h.indexOf('Invoice Number'), iDate = h.indexOf('Invoice Date'), iStatus = h.indexOf('Invoice Status');
   if (iNo === -1 || iDate === -1) return {};
-  var map = {};
+  var map = {}, auto = {};
   values.slice(1).forEach(function (r) {
     var no = String(r[iNo]).trim();
-    if (!no || map[no]) return;
-    if (iStatus !== -1 && String(r[iStatus]).trim().toLowerCase() === 'void') return;
+    var status = iStatus === -1 ? '' : String(r[iStatus]).trim();
+    if (!no || status.toLowerCase() === 'void') return;
+    if (map[no] && !auto[no]) return;
     var day = completedDay_(r[iDate]);
-    if (day) map[no] = day;
+    if (!day) return;
+    if (map[no] && status === AUTO_INVOICE_STATUS_) return;
+    map[no] = day;
+    auto[no] = status === AUTO_INVOICE_STATUS_;
   });
   return map;
+}
+
+// An invoice column with quantities but no date on the Invoices tab gets today's date, written
+// to the tab as "Auto (first seen)". The board polls all day, so the first day it sees the
+// column is almost always the day the invoice was typed in — close enough to place it in the
+// right month until a Zoho export supplies the real date. Skipped, not waited for, if another
+// request holds the lock: the next poll records it.
+function recordNewInvoiceDates_(ss, invoiceCols, rows, invoiceDates) {
+  var missing = invoiceCols.filter(function (c) {
+    if (invoiceDates[c.no]) return false;
+    return rows.some(function (r) { return Number(String(r[c.index]).replace(/,/g, '')) > 0; });
+  });
+  if (!missing.length) return;
+  var sheet = ss.getSheetByName('Invoices');
+  if (!sheet) return;
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return;
+  try {
+    var fresh = readInvoiceDates_(ss);
+    var today = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
+    var h = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function (v) { return String(v).trim(); });
+    var iNo = h.indexOf('Invoice Number'), iDate = h.indexOf('Invoice Date'), iStatus = h.indexOf('Invoice Status');
+    if (iNo === -1 || iDate === -1) return;
+    missing.forEach(function (c) {
+      if (fresh[c.no]) { invoiceDates[c.no] = fresh[c.no]; return; }
+      var row = h.map(function () { return ''; });
+      row[iNo] = c.no; row[iDate] = today;
+      if (iStatus !== -1) row[iStatus] = AUTO_INVOICE_STATUS_;
+      sheet.appendRow(row);
+      invoiceDates[c.no] = today;
+    });
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function readCompletedSettings_(ss) {

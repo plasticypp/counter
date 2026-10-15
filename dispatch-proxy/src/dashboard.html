@@ -600,6 +600,7 @@
     .done-scroll th, .done-scroll td { position: static; box-shadow: none; }
     .done-scroll thead th { position: sticky; top: 0; left: auto; }
     .sum-field { flex: 1 1 45%; }
+
     .sum-field select { max-width: none; width: 100%; min-height: 44px; font-size: var(--fs-base); }
     .mode { flex: 1 1 50%; min-height: 44px; font-size: var(--fs-base); }
     .filter-wrap { order: 1; margin-left: 0; max-width: none; width: 100%; }
@@ -685,6 +686,42 @@
   .trend-bar i { display: block; width: 100%; background: var(--primary); border-radius: 3px; }
   .share { display: inline-block; width: 64px; height: 8px; margin-right: 6px; background: var(--panel-alt); border-radius: 4px; vertical-align: middle; overflow: hidden; }
   .share i { display: block; height: 100%; background: var(--primary); }
+
+  /* ---------------- chip filters ---------------- */
+  .chipbar {
+    flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    margin: 0 0 var(--sp-3);
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 6px 12px;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--ink);
+    font-family: var(--sans); font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; cursor: pointer;
+  }
+  .chip:hover { border-color: var(--primary); }
+  .chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .chip:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .chip-clear { color: var(--dim); }
+  .chip-badge {
+    display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px;
+    border-radius: 999px; background: #fff; color: var(--primary); font-size: var(--fs-2xs);
+  }
+  .chip-sep { width: 1px; height: 24px; background: var(--line); margin: 0 2px; }
+  .chip-panel {
+    flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); align-items: flex-end;
+    margin: -4px 0 var(--sp-3); padding: var(--sp-3); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px;
+  }
+  .stepper { display: inline-flex; align-items: center; gap: 4px; }
+  .stepper b { font-family: var(--sans); font-size: var(--fs-base); color: var(--primary); min-width: 76px; text-align: center; }
+  .stepper .chip { padding: 6px 12px; font-size: var(--fs-md); }
+  /* Phone: one row that scrolls sideways, with 44px targets. Declared after the base chip
+     rules so it wins on source order. */
+  @media (max-width: 620px) {
+    .chipbar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
+    .chipbar::-webkit-scrollbar { display: none; }
+    .chip { min-height: 44px; font-size: var(--fs-base); flex: 0 0 auto; }
+    .chipbar .sum-scope { flex: 0 0 auto; width: auto; order: 0; }
+  }
 
   /* ---------------- download menu ---------------- */
   .export-wrap { position: relative; }
@@ -837,7 +874,7 @@
   </div>
   <!-- One download control for the Completed tabs: exports exactly what the current tab shows,
        filters included, as Excel or PDF. -->
-  <div class="export-wrap" id="exportWrap" hidden>
+  <div class="export-wrap" id="exportWrap">
     <button type="button" class="counter-link" id="exportBtn" aria-haspopup="menu" aria-expanded="false"
             aria-label="Download this view" title="Download this view">
       <span aria-hidden="true">⤓</span>
@@ -1151,18 +1188,13 @@ function compactBar(r) {
   '</div>';
 }
 
-function render() {
-  if (MODE === 'done') { renderCompleted(); return; }
+// The Open board's groups, in display order. Shared with the download so the file is grouped
+// and ordered exactly like the screen.
+function openGroups(rows) {
   var g = groupKeyFns()[VIEW];
-  var filteredRows = applyFilter(ROWS);
-  var showRmMb = VIEW === 'color';
-
-  computeDateCols(filteredRows);
-  MACHINES_SEEN = Array.from(new Set(filteredRows.map(function (r) { return r.machine; }))).sort(function (a, b) { return a - b; });
-
   var groups = {};
   var order = [];
-  filteredRows.forEach(function (r) {
+  rows.forEach(function (r) {
     var k = g.key(r);
     if (!groups[k]) { groups[k] = { label: g.label(r), rows: [] }; order.push(k); }
     groups[k].rows.push(r);
@@ -1173,6 +1205,21 @@ function render() {
     order.sort(function (a, b) { return String(a).localeCompare(String(b), 'en', { numeric: true }); });
   }
   order.forEach(function (k) { groups[k].rows.sort(function (a, b) { return (a.priority || 999) - (b.priority || 999); }); });
+  return { groups: groups, order: order };
+}
+
+function render() {
+  if (MODE === 'done') { renderCompleted(); return; }
+  var g = groupKeyFns()[VIEW];
+  var filteredRows = applyFilter(ROWS);
+  var showRmMb = VIEW === 'color';
+
+  computeDateCols(filteredRows);
+  MACHINES_SEEN = Array.from(new Set(filteredRows.map(function (r) { return r.machine; }))).sort(function (a, b) { return a - b; });
+
+  var grouped = openGroups(filteredRows);
+  var groups = grouped.groups;
+  var order = grouped.order;
 
   var grand = sumRows(filteredRows);
 
@@ -1478,7 +1525,7 @@ function judgedLines() {
 /* Filters for By Invoice / By PO / By Product. The date range applies to the delivered date
    (in By Invoice, each invoice's own date) or to the PO date. Dates are 'yyyy-MM-dd', so
    plain string comparison orders them correctly. */
-var LIST_DEFAULT = { status: '', brand: '', type: '', color: '', dateBy: 'delivered', from: '', to: '' };
+var LIST_DEFAULT = { status: '', brand: '', type: '', color: '', dateBy: 'delivered', from: '', to: '', preset: '', _panel: '' };
 var LIST = Object.assign({}, LIST_DEFAULT);
 
 function inRange(day) {
@@ -1499,28 +1546,116 @@ function passesList(l) {
   return inRange(l.delivered);
 }
 
-function listControls() {
-  var all = judgedLines();
-  var dateField = function (key, label) {
-    return '<label class="sum-field"><span>' + label + '</span><input type="date" data-list="' + key +
-      '" value="' + esc(LIST[key]) + '"></label>';
-  };
-  return '<div class="sum-bar">' +
-    sumSelect('status', 'Status', uniqueSorted(all.map(statusWord)), 'All statuses', LIST, 'data-list') +
-    sumSelect('brand', 'Brand', uniqueSorted(all.map(function (l) { return l.brand; })), 'All brands', LIST, 'data-list') +
-    sumSelect('type', 'Type', uniqueSorted(all.map(function (l) { return productType(l.code); })), 'All types', LIST, 'data-list') +
-    sumSelect('color', 'Colour', uniqueSorted(all.map(function (l) { return l.color; })), 'All colours', LIST, 'data-list') +
-    sumSelect('dateBy', 'Date by', [{ value: 'delivered', text: VIEW === 'dinvoice' ? 'Invoice date' : 'Delivered date' },
-      { value: 'po', text: 'PO date' }], '', LIST, 'data-list') +
-    dateField('from', 'From') + dateField('to', 'To') +
-    '<button type="button" class="linkish" id="listReset">Reset</button>' +
-    '</div>';
+/* ---------------------------------------------------------------------------
+   Chip filters: one row of tap targets instead of a wall of dropdowns. Status and date
+   presets are chips; the rarer filters (brand, type, colour, PO, sort, a custom date range)
+   sit in a panel opened by a chip, with a count badge so nothing is filtered invisibly.
+   --------------------------------------------------------------------------- */
+var STATUS_ICONS = { 'OTIF': '✓', 'Late': '◷', 'Short': '◐', 'Late + Short': '✗', 'Open line': '○' };
+
+function chip(attrs, label, on, extraCls) {
+  return '<button type="button" class="chip' + (on ? ' on' : '') + (extraCls ? ' ' + extraCls : '') + '" ' + attrs +
+    ' aria-pressed="' + !!on + '">' + label + '</button>';
 }
 
-function bindListControls(mainEl) {
-  mainEl.querySelectorAll('[data-list]').forEach(function (el) {
-    el.addEventListener('change', function () { LIST[el.dataset.list] = el.value; render(); });
+var STATUS_ORDER = ['OTIF', 'Late', 'Short', 'Late + Short', 'Open line'];
+function statusChips(state, statuses) {
+  var rank = function (st) { var i = STATUS_ORDER.indexOf(st); return i === -1 ? 99 : i; };
+  return statuses.slice().sort(function (a, b) { return rank(a) - rank(b); }).map(function (st) {
+    return chip('data-chip-key="status" data-chip-val="' + esc(st) + '"',
+      '<span aria-hidden="true">' + (STATUS_ICONS[st] || '–') + '</span> ' + esc(st), state.status === st);
+  }).join('');
+}
+
+function panelChip(state, count) {
+  return chip('data-panel="more"', '<span aria-hidden="true">⚲</span> Filters' +
+    (count ? ' <b class="chip-badge">' + count + '</b>' : ''), state._panel === 'more' || count > 0);
+}
+
+function istToday() { return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10); }
+function monthRange(y, m) {   // m 0-11, may be -1 (December of the year before)
+  var start = new Date(Date.UTC(y, m, 1)), end = new Date(Date.UTC(y, m + 1, 0));
+  return { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
+}
+function presetRange(p) {
+  var t = istToday(), y = Number(t.slice(0, 4)), m = Number(t.slice(5, 7)) - 1;
+  if (p === 'tm') return monthRange(y, m);
+  if (p === 'lm') return monthRange(y, m - 1);
+  if (p === 'ty') return { from: y + '-01-01', to: y + '-12-31' };
+  return { from: '', to: '' };
+}
+
+function listControls() {
+  var all = judgedLines();
+  var more = ['brand', 'type', 'color'].filter(function (k) { return LIST[k]; }).length;
+  var custom = LIST.preset === 'custom' && (LIST.from || LIST.to);
+  var any = LIST.status || more || LIST.from || LIST.to;
+  // Filters and Clear lead the row: on a phone the row scrolls sideways, and what is active
+  // must be visible without scrolling. An active date preset also shows on the Filters chip.
+  var html = '<div class="chipbar">' +
+    panelChip(LIST, more + (LIST.from || LIST.to ? 1 : 0)) +
+    (any ? chip('id="listReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '') +
+    statusChips(LIST, uniqueSorted(all.map(statusWord))) +
+    '<span class="chip-sep" aria-hidden="true"></span>' +
+    chip('data-preset="tm"', 'This month', LIST.preset === 'tm') +
+    chip('data-preset="lm"', 'Last month', LIST.preset === 'lm') +
+    chip('data-preset="ty"', 'This year', LIST.preset === 'ty') +
+    chip('data-panel="dates"', '<span aria-hidden="true">📅</span> ' + (custom ? esc((LIST.from || '…') + ' → ' + (LIST.to || '…')) : 'Dates'),
+      LIST._panel === 'dates' || custom) +
+    '</div>';
+  if (LIST._panel === 'more') {
+    html += '<div class="chip-panel">' +
+      sumSelect('brand', 'Brand', uniqueSorted(all.map(function (l) { return l.brand; })), 'All brands', LIST, 'data-list') +
+      sumSelect('type', 'Type', uniqueSorted(all.map(function (l) { return productType(l.code); })), 'All types', LIST, 'data-list') +
+      sumSelect('color', 'Colour', uniqueSorted(all.map(function (l) { return l.color; })), 'All colours', LIST, 'data-list') +
+      '</div>';
+  } else if (LIST._panel === 'dates') {
+    html += '<div class="chip-panel">' +
+      sumSelect('dateBy', 'Date by', [{ value: 'delivered', text: VIEW === 'dinvoice' ? 'Invoice date' : 'Delivered date' },
+        { value: 'po', text: 'PO date' }], '', LIST, 'data-list') +
+      '<label class="sum-field"><span>From</span><input type="date" data-list="from" value="' + esc(LIST.from) + '"></label>' +
+      '<label class="sum-field"><span>To</span><input type="date" data-list="to" value="' + esc(LIST.to) + '"></label>' +
+      '</div>';
+  }
+  return html;
+}
+
+// Wires a chip bar to its state object. Shared by the line tabs (LIST) and Summary (SUM).
+function bindChips(mainEl, state, attr) {
+  mainEl.querySelectorAll('[data-chip-key]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var k = b.dataset.chipKey, v = b.dataset.chipVal;
+      state[k] = state[k] === v ? '' : v;
+      render();
+    });
   });
+  mainEl.querySelectorAll('[data-panel]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      state._panel = state._panel === b.dataset.panel ? '' : b.dataset.panel;
+      render();
+    });
+  });
+  mainEl.querySelectorAll('[data-preset]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var p = b.dataset.preset === state.preset ? '' : b.dataset.preset;
+      var r = presetRange(p);
+      state.preset = p; state.from = r.from; state.to = r.to;
+      render();
+    });
+  });
+  mainEl.querySelectorAll('[' + attr + ']').forEach(function (el) {
+    el.addEventListener('change', function () {
+      var k = el.getAttribute(attr);
+      state[k] = el.value;
+      if (k === 'from' || k === 'to') state.preset = 'custom';
+      render();
+    });
+  });
+}
+
+
+function bindListControls(mainEl) {
+  bindChips(mainEl, LIST, 'data-list');
   var rs = document.getElementById('listReset');
   if (rs) rs.addEventListener('click', function () { LIST = Object.assign({}, LIST_DEFAULT); render(); });
 }
@@ -1687,7 +1822,8 @@ function renderCompleted() {
    alike, so the figures on screen always describe the same slice.
    --------------------------------------------------------------------------- */
 var MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-var SUM = { year: 0, month: -1, po: '', brand: '', type: '', color: '', status: '', sort: 'qty' };
+var SUM_DEFAULT = { year: 0, month: -1, po: '', brand: '', type: '', color: '', status: '', sort: 'qty', _panel: '' };
+var SUM = Object.assign({}, SUM_DEFAULT);
 var SUM_SORTS = { qty: 'Quantity', value: 'Value', invoices: 'Invoices', otif: 'OTIF %', code: 'Code' };
 var SUM_STATUSES = ['OTIF', 'Late', 'Short', 'Late + Short', 'Open line'];
 
@@ -1787,27 +1923,37 @@ function uniqueSorted(list) {
     .sort(function (a, b) { return String(a).localeCompare(String(b), 'en', { numeric: true }); });
 }
 
-function summaryControls(all, monthsWithData) {
-  var years = uniqueSorted(all.map(function (s) { return s.date ? Number(s.date.slice(0, 4)) : null; }));
-  var months = [{ value: -1, text: 'Whole year' }].concat(MONTH_NAMES.map(function (m, i) {
-    return { value: i, text: m, disabled: !monthsWithData[i] };
-  }));
+// Month | Year switch and a ‹ period › stepper, then the same chips as the line tabs.
+function summaryControls(all) {
   var isYear = SUM.month === -1;
-  return '<div class="sum-bar">' +
-    '<div class="sum-field"><span>View</span><div class="modes sum-scope" role="group" aria-label="Summary period">' +
+  var label = isYear ? String(SUM.year) : MONTH_NAMES[SUM.month] + ' ' + SUM.year;
+  var more = ['po', 'brand', 'type', 'color'].filter(function (k) { return SUM[k]; }).length + (SUM.sort !== 'qty' ? 1 : 0);
+  var any = SUM.status || more;
+  var html = '<div class="chipbar">' +
+    '<div class="modes sum-scope" role="group" aria-label="Summary period">' +
       '<button type="button" class="mode' + (isYear ? '' : ' active') + '" data-scope="month" aria-pressed="' + !isYear + '">Month</button>' +
       '<button type="button" class="mode' + (isYear ? ' active' : '') + '" data-scope="year" aria-pressed="' + isYear + '">Year</button>' +
-    '</div></div>' +
-    sumSelect('year', 'Year', years) +
-    sumSelect('month', 'Month', months) +
-    sumSelect('po', 'PO', uniqueSorted(all.map(function (s) { return s.po; })), 'All POs') +
-    sumSelect('brand', 'Brand', uniqueSorted(all.map(function (s) { return s.brand; })), 'All brands') +
-    sumSelect('type', 'Type', uniqueSorted(all.map(function (s) { return productType(s.code); })), 'All types') +
-    sumSelect('color', 'Colour', uniqueSorted(all.map(function (s) { return s.color; })), 'All colours') +
-    sumSelect('status', 'Status', SUM_STATUSES, 'All statuses') +
-    sumSelect('sort', 'Sort by', Object.keys(SUM_SORTS).map(function (k) { return { value: k, text: SUM_SORTS[k] }; })) +
-    '<button type="button" class="linkish" id="sumReset">Reset</button>' +
+    '</div>' +
+    '<div class="stepper" role="group" aria-label="Period">' +
+      '<button type="button" class="chip" data-step="-1" aria-label="Previous ' + (isYear ? 'year' : 'month') + '">‹</button>' +
+      '<b>' + esc(label) + '</b>' +
+      '<button type="button" class="chip" data-step="1" aria-label="Next ' + (isYear ? 'year' : 'month') + '">›</button>' +
+    '</div>' +
+    '<span class="chip-sep" aria-hidden="true"></span>' +
+    panelChip(SUM, more + (SUM.status ? 1 : 0)) +
+    (any ? chip('id="sumReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '') +
+    statusChips(SUM, SUM_STATUSES) +
     '</div>';
+  if (SUM._panel === 'more') {
+    html += '<div class="chip-panel">' +
+      sumSelect('po', 'PO', uniqueSorted(all.map(function (s) { return s.po; })), 'All POs') +
+      sumSelect('brand', 'Brand', uniqueSorted(all.map(function (s) { return s.brand; })), 'All brands') +
+      sumSelect('type', 'Type', uniqueSorted(all.map(function (s) { return productType(s.code); })), 'All types') +
+      sumSelect('color', 'Colour', uniqueSorted(all.map(function (s) { return s.color; })), 'All colours') +
+      sumSelect('sort', 'Sort by', Object.keys(SUM_SORTS).map(function (k) { return { value: k, text: SUM_SORTS[k] }; })) +
+      '</div>';
+  }
+  return html;
 }
 
 function summaryKpis(t, prev, against) {
@@ -1929,17 +2075,20 @@ function renderSummary(mainEl) {
   var title = (isYear ? 'Year ' : MONTH_NAMES[SUM.month] + ' ') + SUM.year +
     (running ? ' · month to date (1–' + nowIst.getUTCDate() + ')' : '');
 
-  mainEl.innerHTML = summaryControls(all, monthsWithData) +
+  mainEl.innerHTML = summaryControls(all) +
     '<h2 class="sum-title">' + esc(title) + '</h2>' +
     summaryKpis(t, prev, against) +
     summaryTrend(d, SUM.year) +
     summaryTable(t, isYear);
 
-  mainEl.querySelectorAll('[data-sum]').forEach(function (el) {
-    el.addEventListener('change', function () {
-      var k = el.dataset.sum;
-      SUM[k] = (k === 'year' || k === 'month') ? Number(el.value) : el.value;
-      if (k === 'year') SUM.month = -1;   // a new year opens on the whole year
+  bindChips(mainEl, SUM, 'data-sum');
+  mainEl.querySelectorAll('[data-step]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var step = Number(b.dataset.step);
+      if (SUM.month === -1) { SUM.year += step; render(); return; }
+      var m = SUM.month + step;
+      SUM.year += Math.floor(m / 12);
+      SUM.month = ((m % 12) + 12) % 12;
       render();
     });
   });
@@ -1960,8 +2109,10 @@ function renderSummary(mainEl) {
       render();
     });
   });
-  document.getElementById('sumReset').addEventListener('click', function () {
-    SUM = { year: 0, month: -1, po: '', brand: '', type: '', color: '', status: '', sort: 'qty' };
+  var sr = document.getElementById('sumReset');
+  if (sr) sr.addEventListener('click', function () {
+    // Clear the filters, keep the period the reader is looking at.
+    SUM = Object.assign({}, SUM_DEFAULT, { year: SUM.year, month: SUM.month });
     render();
   });
   var firstTh = mainEl.querySelector('.done-scroll thead th:first-child');
@@ -1992,22 +2143,62 @@ function loadScript(url) {
   return loadedScripts[url];
 }
 
-var VIEW_NAMES = { dinvoice: 'By Invoice', dpo: 'By PO', dproduct: 'By Product', dsummary: 'Summary' };
+var VIEW_NAMES = { dinvoice: 'By Invoice', dpo: 'By PO', dproduct: 'By Product', dsummary: 'Summary',
+  po: 'Open By PO', product: 'Open By Product', machine: 'Open By Machine', color: 'Open By Colour' };
+var OPEN_GROUP_NAMES = { po: 'PO', product: 'Product', machine: 'Machine', color: 'Colour' };
 var GROUP_NAMES = { dinvoice: 'Invoice', dpo: 'PO', dproduct: 'Product' };
 
 function activeFilterText() {
   var parts = [];
   if (FILTER) parts.push('Search: ' + FILTER);
+  if (MODE === 'open') return parts.length ? 'Filters: ' + parts.join(' · ') : 'Filters: none';
   var state = VIEW === 'dsummary' ? SUM : LIST;
   Object.keys(state).forEach(function (k) {
-    if (k === 'year' || k === 'month' || k === 'sort' || k === 'dateBy' || !state[k]) return;
+    if (k === 'year' || k === 'month' || k === 'sort' || k === 'dateBy' || k === 'preset' || k.charAt(0) === '_' || !state[k]) return;
     parts.push(k.charAt(0).toUpperCase() + k.slice(1) + ': ' + state[k]);
   });
   if (VIEW !== 'dsummary' && (LIST.from || LIST.to)) parts.push('(dates by ' + (LIST.dateBy === 'po' ? 'PO date' : 'delivery') + ')');
   return parts.length ? 'Filters: ' + parts.join(' · ') : 'Filters: none';
 }
 
+// The Open board's table is a day-by-day Gantt; the file gets the schedule as Start / End
+// dates instead of 45 day columns.
+function openViewForExport() {
+  var rows = applyFilter(ROWS);
+  if (!rows.length) return null;
+  var showRmMb = VIEW === 'color';
+  var g = openGroups(rows);
+  var byPo = VIEW === 'po';   // the group column already is the PO
+  var d = function (iso) { return iso ? fmtDate(new Date(iso)) : ''; };
+  var nums = function (t) {
+    return [Math.round(t.orderQty), Math.round(t.supplied), Math.round(t.readyStock), Math.round(t.balance)]
+      .concat(showRmMb ? [Math.round(t.rmReq * 100) / 100, Math.round(t.mb * 100) / 100] : []);
+  };
+  var out = [];
+  g.order.forEach(function (k) {
+    var grp = g.groups[k];
+    grp.rows.forEach(function (r) {
+      out.push([grp.label, r.code, r.name, r.color].concat(byPo ? [] : [r.po]).concat([r.machine, r.priority]).concat(nums(r))
+        .concat([d(r.start), d(r.end), r.days || '']));
+    });
+    out.push(['', 'Subtotal', '', ''].concat(byPo ? [] : ['']).concat(['', '']).concat(nums(sumRows(grp.rows))).concat(['', '', '']));
+  });
+  var grand = sumRows(rows);
+  out.push(['', 'Total', '', ''].concat(byPo ? [] : ['']).concat(['', '']).concat(nums(grand)).concat(['', '', '']));
+  return {
+    title: 'YPP Dispatch · Open · ' + VIEW_NAMES[VIEW].replace('Open ', ''),
+    filters: activeFilterText(),
+    kpis: 'Order Qty: ' + fmtNum(grand.orderQty) + '   Supplied: ' + fmtNum(grand.supplied) +
+      '   Ready: ' + fmtNum(grand.readyStock) + '   Balance: ' + fmtNum(grand.balance),
+    columns: [OPEN_GROUP_NAMES[VIEW], 'Code', 'Item', 'Colour'].concat(byPo ? [] : ['PO']).concat(['Machine', 'Priority',
+      'Order Qty', 'Supplied', 'Ready', 'Balance']).concat(showRmMb ? ['RM Req', 'MB'] : [])
+      .concat(['Start', 'End', 'Days']),
+    rows: out,
+  };
+}
+
 function viewForExport() {
+  if (MODE === 'open') return openViewForExport();
   var tbl = document.querySelector('#main .done-scroll table');
   if (!tbl) return null;
   var grouped = VIEW !== 'dsummary';
@@ -2078,7 +2269,7 @@ function exportPdf(v) {
     styles: { fontSize: 7, cellPadding: 3, overflow: 'linebreak' },
     headStyles: { fillColor: [30, 64, 175] },
     didParseCell: function (data) {
-      if (data.section === 'body' && /^Total/i.test(String(data.row.raw[VIEW === 'dsummary' ? 0 : 1] || ''))) {
+      if (data.section === 'body' && /^(sub)?total/i.test(String(data.row.raw[VIEW === 'dsummary' ? 0 : 1] || ''))) {
         data.cell.styles.fontStyle = 'bold';
       }
     },
@@ -2150,7 +2341,6 @@ document.querySelectorAll('.tab').forEach(function (btn) {
 document.querySelectorAll('.mode').forEach(function (btn) {
   btn.addEventListener('click', function () {
     MODE = btn.dataset.mode;
-    document.getElementById('exportWrap').hidden = MODE !== 'done';
     VIEW = VIEW_BY_MODE[MODE];
     document.querySelectorAll('.mode').forEach(function (b) {
       var on = b === btn;
