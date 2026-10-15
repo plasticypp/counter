@@ -1079,6 +1079,7 @@ function getDashboardData_(ss) {
   return {
     rows: out,
     gridStart: gridStartDD ? gridStartDD.toISOString() : null,
+    completed: getCompletedData_(ss, headersDD, rowsDD, nameByCodeDD),
   };
 }
 
