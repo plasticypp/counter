@@ -26,6 +26,7 @@ function getCompletedData_(ss, headers, rows, nameByCode) {
   var invoiceDates = readInvoiceDates_(ss);
   recordNewInvoiceDates_(ss, invoiceCols, rows, invoiceDates);
   var settings = readCompletedSettings_(ss);
+  var usualMachine = readUsualMachines_(ss);
 
   var blank = function (v) { return v === '' || v === null || v === undefined || String(v).trim() === ''; };
   var invoicesOf = function (r) {
@@ -56,7 +57,7 @@ function getCompletedData_(ss, headers, rows, nameByCode) {
         line: i, done: isDone(r), inv: inv.no, date: inv.date, qty: inv.qty,
         rate: Number(r[col.rate]) || 0, code: r[col.code],
         name: nameByCode[r[col.code]] || r[col.code], color: r[col.color] || '(no color)',
-        brand: brandOf_(r, col), po: r[col.po],
+        brand: brandOf_(r, col), po: r[col.po], usualMachine: usualMachine[r[col.code]] || '',
       });
     });
   });
@@ -64,7 +65,7 @@ function getCompletedData_(ss, headers, rows, nameByCode) {
   var lines = [];
   rows.forEach(function (r, i) {
     if (!r[col.code] || !isDone(r)) return;
-    lines.push(completedLine_(r, i, col, nameByCode, invoicesOf(r)));
+    lines.push(completedLine_(r, i, col, nameByCode, invoicesOf(r), usualMachine));
   });
 
   return {
@@ -75,14 +76,32 @@ function getCompletedData_(ss, headers, rows, nameByCode) {
   };
 }
 
-function completedLine_(r, id, col, nameByCode, invoices) {
+function completedLine_(r, id, col, nameByCode, invoices, usualMachine) {
   return {
     id: id, po: r[col.po], poDate: completedDay_(r[col.poDate]),
     code: r[col.code], name: nameByCode[r[col.code]] || r[col.code],
     color: r[col.color] || '(no color)', brand: brandOf_(r, col),
+    usualMachine: usualMachine[r[col.code]] || '',
     orderQty: Number(r[col.orderQty]) || 0, supplied: Number(r[col.supplied]) || 0,
     invoices: invoices,
   };
+}
+
+// Product Code -> the machine Masters says that product normally runs on. A completed line has
+// had its own Machine cleared, so this is the only machine left to filter or group it by.
+function readUsualMachines_(ss) {
+  var sheet = ss.getSheetByName('Masters');
+  if (!sheet || sheet.getLastRow() < 2) return {};
+  var values = sheet.getDataRange().getValues();
+  var h = values[0].map(function (v) { return String(v).trim(); });
+  var iCode = h.indexOf('Product Code'), iMachine = h.indexOf('Machine');
+  if (iCode === -1 || iMachine === -1) return {};
+  var map = {};
+  values.slice(1).forEach(function (r) {
+    var code = String(r[iCode]).trim(), m = String(r[iMachine]).trim();
+    if (code && m) map[code] = m;
+  });
+  return map;
 }
 
 // The Shape column holds the customer brand the bottle is moulded for (VARROC, ARZOL, myTVS).

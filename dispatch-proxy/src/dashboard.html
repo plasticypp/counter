@@ -204,7 +204,15 @@
   }
   .legend .chip { display: inline-flex; align-items: center; gap: 6px; }
   .legend .chip i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-  .legend .today-chip i { background: var(--today); border-radius: 50%; }
+  .legend .chip.on i { outline: 1.5px solid #fff; }
+  @media (max-width: 620px) {
+    /* A phone only needs the dot and the number; the word spent a whole row on the key. */
+    .legend .mword { display: none; }
+    .legend .mchip { min-width: 52px; justify-content: center; }
+  }
+  /* "Today" is a key, not a control, so it is deliberately not styled as a chip. */
+  .legend .today-chip { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .today-chip i { width: 10px; height: 10px; display: inline-block; background: var(--today); border-radius: 50%; }
 
   /* ---------------- desktop: unified table ---------------- */
   /* DESKTOP KEEPS ITS OWN BOUNDED SCROLL BOX. The wide date grid needs horizontal scrolling
@@ -953,6 +961,9 @@ var COMPLETED = null;                               // { leadDays, tolerancePct,
 var FILTER = '';
 var TODAY = null;
 var MACHINES_SEEN = [];
+var MACHINE_SEL = {};   // Open board: machines ticked in the key, e.g. { '5': true }
+function hasMachineSel() { return Object.keys(MACHINE_SEL).length > 0; }
+function machineSelText() { return Object.keys(MACHINE_SEL).sort(function (a, b) { return a - b; }).join(', '); }
 
 var LAST_OK = null;      // Date of the last successful fetch — the freshness stamp's source.
 var LAST_ERROR = '';     // Why the last attempt failed, so the message can name the cause.
@@ -1065,7 +1076,7 @@ function paintFreshness() {
   box.classList.toggle('is-stale', SERVING_STALE || paused || mins >= 30);
 }
 
-function applyFilter(rows) {
+function applyFilter(rows, skipMachine) {
   // Nothing left to dispatch is nothing to show. A row whose Balance has reached zero is
   // complete, and a negative one is over-supplied — neither is work the board exists to
   // schedule, and together they were 16 of 70 rows, pushing live jobs off the screen.
@@ -1082,15 +1093,22 @@ function applyFilter(rows) {
     var b = Number(r.balance);
     return !isFinite(b) || b > 0;
   });
-  if (!FILTER) return rows;
-  var q = FILTER.toLowerCase();
-  // PO is searchable too — By PO is the default view, yet filtering by a PO number used to
-  // return nothing.
-  return rows.filter(function (r) {
-    return String(r.code).toLowerCase().indexOf(q) !== -1
-      || String(r.name).toLowerCase().indexOf(q) !== -1
-      || String(r.po).toLowerCase().indexOf(q) !== -1;
-  });
+  if (FILTER) {
+    var q = FILTER.toLowerCase();
+    // PO is searchable too — By PO is the default view, yet filtering by a PO number used to
+    // return nothing.
+    rows = rows.filter(function (r) {
+      return String(r.code).toLowerCase().indexOf(q) !== -1
+        || String(r.name).toLowerCase().indexOf(q) !== -1
+        || String(r.po).toLowerCase().indexOf(q) !== -1;
+    });
+  }
+  // The machine key is built from the rows BEFORE this step (skipMachine), or ticking one
+  // machine would make every other pill vanish.
+  if (!skipMachine && hasMachineSel()) {
+    rows = rows.filter(function (r) { return MACHINE_SEL[String(r.machine)]; });
+  }
+  return rows;
 }
 
 var DATE_COLS = [];
@@ -1248,7 +1266,7 @@ function render() {
   var showRmMb = VIEW === 'color';
 
   computeDateCols(filteredRows);
-  MACHINES_SEEN = Array.from(new Set(filteredRows.map(function (r) { return r.machine; }))).sort(function (a, b) { return a - b; });
+  MACHINES_SEEN = Array.from(new Set(applyFilter(ROWS, true).map(function (r) { return r.machine; }))).sort(function (a, b) { return a - b; });
 
   var grouped = openGroups(filteredRows);
   var groups = grouped.groups;
@@ -1266,6 +1284,9 @@ function render() {
     if (FILTER) {
       emptyMsg = '<div class="empty">No jobs match “' + esc(FILTER) + '”.'
         + ' <button type="button" class="linkish" id="emptyClear">Clear filter</button></div>';
+    } else if (hasMachineSel()) {
+      emptyMsg = '<div class="empty">No open jobs on machine ' + esc(machineSelText()) + '.'
+        + ' <button type="button" class="linkish" id="emptyMachines">Show all machines</button></div>';
     } else if (ROWS.length) {
       emptyMsg = '<div class="empty">Nothing outstanding — every job on the sheet is fully supplied.</div>';
     } else {
@@ -1276,6 +1297,8 @@ function render() {
     mainEl.setAttribute('aria-busy', 'false');
     var ec = document.getElementById('emptyClear');
     if (ec) ec.addEventListener('click', clearFilter);
+    var em = document.getElementById('emptyMachines');
+    if (em) em.addEventListener('click', function () { MACHINE_SEL = {}; render(); });
     return;
   }
 
@@ -1284,9 +1307,14 @@ function render() {
   // ---- legend ----
   html += '<div class="legend">';
   MACHINES_SEEN.forEach(function (m) {
-    html += '<span class="chip"><i style="background:' + colorFor(m) + '"></i>Machine ' + esc(m) + '</span>';
+    var on = !!MACHINE_SEL[String(m)];
+    html += '<button type="button" class="chip mchip' + (on ? ' on' : '') + '" data-machine="' + esc(m) +
+      '" aria-pressed="' + on + '" aria-label="Machine ' + esc(m) + '"><i style="background:' + colorFor(m) + '"></i><span class="mword">Machine </span>' + esc(m) + '</button>';
   });
-  html += '<span class="chip today-chip"><i></i>Today</span>';
+  if (hasMachineSel()) {
+    html += '<button type="button" class="chip chip-clear" id="machineClear"><span aria-hidden="true">✕</span> All machines</button>';
+  }
+  html += '<span class="today-chip"><i></i>Today</span>';
   html += '<button type="button" class="jump-today" id="jumpToday">Jump to today</button>';
   html += '</div>';
 
@@ -1469,6 +1497,15 @@ function render() {
   measureFrozenOffset();
   var jt = document.getElementById('jumpToday');
   if (jt) jt.addEventListener('click', scrollToToday);
+  mainEl.querySelectorAll('[data-machine]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var m = b.dataset.machine;
+      if (MACHINE_SEL[m]) delete MACHINE_SEL[m]; else MACHINE_SEL[m] = true;
+      render();
+    });
+  });
+  var mc = document.getElementById('machineClear');
+  if (mc) mc.addEventListener('click', function () { MACHINE_SEL = {}; render(); });
   scrollToToday();
 }
 
@@ -1558,7 +1595,7 @@ function judgedLines() {
 /* Filters for By Invoice / By PO / By Product. The date range applies to the delivered date
    (in By Invoice, each invoice's own date) or to the PO date. Dates are 'yyyy-MM-dd', so
    plain string comparison orders them correctly. */
-var LIST_DEFAULT = { status: '', brand: '', type: '', color: '', dateBy: 'delivered', from: '', to: '', preset: '', _panel: '' };
+var LIST_DEFAULT = { status: '', brand: '', type: '', color: '', machine: '', dateBy: 'delivered', from: '', to: '', preset: '', _panel: '' };
 var LIST = Object.assign({}, LIST_DEFAULT);
 
 function inRange(day) {
@@ -1572,6 +1609,7 @@ function passesList(l) {
   if (LIST.brand && l.brand !== LIST.brand) return false;
   if (LIST.type && productType(l.code) !== LIST.type) return false;
   if (LIST.color && l.color !== LIST.color) return false;
+  if (LIST.machine && String(l.usualMachine) !== LIST.machine) return false;
   if (LIST.dateBy === 'po') return inRange(l.poDate);
   // By Invoice judges the range per invoice (see completedGroups); a line stays if any of
   // its invoices falls in it.
@@ -1605,6 +1643,12 @@ function panelChip(state, count) {
     (count ? ' <b class="chip-badge">' + count + '</b>' : ''), state._panel === 'more' || count > 0);
 }
 
+function machineOptions(items) {
+  return uniqueSorted(items.map(function (x) { return x.usualMachine; })).map(function (m) {
+    return { value: String(m), text: 'Machine ' + m };
+  });
+}
+
 function istToday() { return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10); }
 function monthRange(y, m) {   // m 0-11, may be -1 (December of the year before)
   var start = new Date(Date.UTC(y, m, 1)), end = new Date(Date.UTC(y, m + 1, 0));
@@ -1620,7 +1664,7 @@ function presetRange(p) {
 
 function listControls() {
   var all = judgedLines();
-  var more = ['brand', 'type', 'color'].filter(function (k) { return LIST[k]; }).length;
+  var more = ['brand', 'type', 'color', 'machine'].filter(function (k) { return LIST[k]; }).length;
   var custom = LIST.preset === 'custom' && (LIST.from || LIST.to);
   var any = LIST.status || more || LIST.from || LIST.to;
   // Filters and Clear lead the row: on a phone the row scrolls sideways, and what is active
@@ -1641,6 +1685,7 @@ function listControls() {
       sumSelect('brand', 'Brand', uniqueSorted(all.map(function (l) { return l.brand; })), 'All brands', LIST, 'data-list') +
       sumSelect('type', 'Type', uniqueSorted(all.map(function (l) { return productType(l.code); })), 'All types', LIST, 'data-list') +
       sumSelect('color', 'Colour', uniqueSorted(all.map(function (l) { return l.color; })), 'All colours', LIST, 'data-list') +
+      sumSelect('machine', 'Usual machine', machineOptions(all), 'All machines', LIST, 'data-list') +
       '</div>';
   } else if (LIST._panel === 'dates') {
     html += '<div class="chip-panel">' +
@@ -1855,7 +1900,7 @@ function renderCompleted() {
    alike, so the figures on screen always describe the same slice.
    --------------------------------------------------------------------------- */
 var MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-var SUM_DEFAULT = { year: 0, month: -1, po: '', brand: '', type: '', color: '', status: '', sort: 'qty', _panel: '' };
+var SUM_DEFAULT = { year: 0, month: -1, po: '', brand: '', type: '', color: '', machine: '', status: '', sort: 'qty', _panel: '' };
 var SUM = Object.assign({}, SUM_DEFAULT);
 var SUM_SORTS = { qty: 'Quantity', value: 'Value', invoices: 'Invoices', otif: 'OTIF %', code: 'Code' };
 var SUM_STATUSES = ['OTIF', 'Late', 'Short', 'Late + Short', 'Open line'];
@@ -1881,6 +1926,7 @@ function passesSum(x, status, invNos) {
   if (SUM.brand && x.brand !== SUM.brand) return false;
   if (SUM.type && productType(x.code) !== SUM.type) return false;
   if (SUM.color && x.color !== SUM.color) return false;
+  if (SUM.machine && String(x.usualMachine) !== SUM.machine) return false;
   if (SUM.status && status !== SUM.status) return false;
   if (!FILTER) return true;
   var q = FILTER.toLowerCase();
@@ -1960,7 +2006,7 @@ function uniqueSorted(list) {
 function summaryControls(all) {
   var isYear = SUM.month === -1;
   var label = isYear ? String(SUM.year) : MONTH_NAMES[SUM.month] + ' ' + SUM.year;
-  var more = ['po', 'brand', 'type', 'color'].filter(function (k) { return SUM[k]; }).length + (SUM.sort !== 'qty' ? 1 : 0);
+  var more = ['po', 'brand', 'type', 'color', 'machine'].filter(function (k) { return SUM[k]; }).length + (SUM.sort !== 'qty' ? 1 : 0);
   var any = SUM.status || more;
   var html = '<div class="chipbar">' +
     '<div class="modes sum-scope" role="group" aria-label="Summary period">' +
@@ -1983,6 +2029,7 @@ function summaryControls(all) {
       sumSelect('brand', 'Brand', uniqueSorted(all.map(function (s) { return s.brand; })), 'All brands') +
       sumSelect('type', 'Type', uniqueSorted(all.map(function (s) { return productType(s.code); })), 'All types') +
       sumSelect('color', 'Colour', uniqueSorted(all.map(function (s) { return s.color; })), 'All colours') +
+      sumSelect('machine', 'Usual machine', machineOptions(all), 'All machines') +
       sumSelect('sort', 'Sort by', Object.keys(SUM_SORTS).map(function (k) { return { value: k, text: SUM_SORTS[k] }; })) +
       '</div>';
   }
@@ -2184,11 +2231,14 @@ var GROUP_NAMES = { dinvoice: 'Invoice', dpo: 'PO', dproduct: 'Product' };
 function activeFilterText() {
   var parts = [];
   if (FILTER) parts.push('Search: ' + FILTER);
-  if (MODE === 'open') return parts.length ? 'Filters: ' + parts.join(' · ') : 'Filters: none';
+  if (MODE === 'open') {
+    if (hasMachineSel()) parts.push('Machine: ' + machineSelText());
+    return parts.length ? 'Filters: ' + parts.join(' · ') : 'Filters: none';
+  }
   var state = VIEW === 'dsummary' ? SUM : LIST;
   Object.keys(state).forEach(function (k) {
     if (k === 'year' || k === 'month' || k === 'sort' || k === 'dateBy' || k === 'preset' || k.charAt(0) === '_' || !state[k]) return;
-    parts.push(k.charAt(0).toUpperCase() + k.slice(1) + ': ' + state[k]);
+    parts.push((k === 'machine' ? 'Usual machine' : k.charAt(0).toUpperCase() + k.slice(1)) + ': ' + state[k]);
   });
   if (VIEW !== 'dsummary' && (LIST.from || LIST.to)) parts.push('(dates by ' + (LIST.dateBy === 'po' ? 'PO date' : 'delivery') + ')');
   return parts.length ? 'Filters: ' + parts.join(' · ') : 'Filters: none';
