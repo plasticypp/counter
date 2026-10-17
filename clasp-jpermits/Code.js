@@ -321,7 +321,11 @@ function counterProducts_(ss, machine) {
   var all = rows.slice(1).filter(function (r) { return r[cCode]; }).map(function (r) {
     var bits = [cPack, cColor, cShape].map(function (i) { return i === -1 ? '' : r[i]; })
       .filter(function (v) { return v !== '' && v != null; });
-    return { code: String(r[cCode]), label: bits.join(' ') };
+    // pack / shape (brand) / color travel separately as well as inside the label: the counter's
+    // tile picker narrows by size, then brand, then colour, which a joined string cannot do.
+    var part = function (i) { return i === -1 || r[i] == null ? '' : String(r[i]).trim(); };
+    return { code: String(r[cCode]), label: bits.join(' '),
+      pack: part(cPack), shape: part(cShape), color: part(cColor) };
   });
 
   var scheduled = {};
@@ -330,18 +334,23 @@ function counterProducts_(ss, machine) {
     var labelRow = findInvoiceRow_(dispatch) + 1;
     var dHdr = dispatch.getRange(labelRow, 1, 1, dispatch.getLastColumn()).getValues()[0];
     var dM = dHdr.indexOf('Machine'), dC = dHdr.indexOf('Code'), dB = dHdr.indexOf('Balance');
+    var dP = dHdr.indexOf('Priority');
     var lastRowD = dispatch.getLastRow();
     if (dM !== -1 && dC !== -1 && lastRowD > labelRow) {
       dispatch.getRange(labelRow + 1, 1, lastRowD - labelRow, dispatch.getLastColumn())
         .getValues().forEach(function (r) {
           if (Number(r[dM]) === Number(machine) && r[dC] && (dB === -1 || Number(r[dB]) > 0)) {
-            scheduled[String(r[dC])] = true;
+            // Keep the best (lowest) priority per code, so the queue can be shown in run order.
+            var rank = dP === -1 ? 999 : (Number(r[dP]) || 999), k = String(r[dC]);
+            if (scheduled[k] === undefined || rank < scheduled[k]) scheduled[k] = rank;
           }
         });
     }
   }
-  var head = all.filter(function (p) { return scheduled[p.code]; });
-  var tail = all.filter(function (p) { return !scheduled[p.code]; });
+  all.forEach(function (p) { p.sched = scheduled[p.code] !== undefined; });
+  var head = all.filter(function (p) { return p.sched; })
+    .sort(function (a, b) { return scheduled[a.code] - scheduled[b.code]; });
+  var tail = all.filter(function (p) { return !p.sched; });
   return head.concat(tail);
 }
 

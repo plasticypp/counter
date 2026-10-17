@@ -193,6 +193,37 @@ input.err{border-color:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--b
 .opt:hover{border-color:var(--primary)}
 .opt:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
 .opt.on{background:var(--primary);border-color:var(--primary);color:#fff}
+/* Product picker tiles. Same family as the operator tiles above: big targets, 8px gaps, the
+   chosen one filled. auto-fit so a 320px phone still gets 3-4 across. */
+.picker{display:flex;flex-direction:column;gap:13px}
+.pkh{font:600 12px/1.3 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 6px 1px}
+.ptiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:8px}
+.ptiles.wide{grid-template-columns:repeat(auto-fit,minmax(148px,1fr))}
+.pt{min-height:54px;padding:6px 8px;border:1.5px solid var(--line);border-radius:10px;
+  background:color-mix(in srgb,var(--muted) 8%,transparent);color:var(--ink);cursor:pointer;
+  font-family:inherit;font-weight:700;font-size:17px;line-height:1.15;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  text-align:center;transition:background .15s ease,border-color .15s ease}
+.pt small{font:600 11px/1.1 'IBM Plex Mono',monospace;letter-spacing:.04em;color:var(--muted)}
+.pt:hover{border-color:var(--primary)}
+.pt:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.pt.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.pt.on small{color:rgba(255,255,255,.85)}
+.pt.row{flex-direction:row;gap:8px;font-size:15px}
+.pt .sw{flex:none;width:18px;height:18px;border-radius:50%;
+  border:1.5px solid color-mix(in srgb,var(--ink) 30%,transparent)}
+.pt.sched{border-color:var(--amber);background:var(--amber-soft)}
+.pt.sched.on{background:var(--primary);border-color:var(--primary)}
+.pt.sched .nm{font-size:15px}
+.pt{min-width:0;overflow:hidden}
+.pt[data-pk="brand"] b{font-size:15px;letter-spacing:-.01em}
+.pksel{padding:9px 12px;border-radius:10px;background:var(--ok-soft);color:var(--ok);
+  font-weight:700;font-size:14.5px;line-height:1.35}
+.pksel b{font-family:'IBM Plex Mono',monospace;font-weight:700}
+.pkkeep{min-height:44px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);
+  color:var(--muted);font-family:inherit;font-weight:700;font-size:14px;cursor:pointer}
+.pkkeep:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
 .who{margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
 .tally{margin-top:14px;border:1px solid var(--line);border-radius:11px;overflow:hidden}
 .trow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 13px;
@@ -321,7 +352,35 @@ button .hi{font-weight:500;opacity:.9}
           <b>Change</b>
         </button>
       </div>
+      <!-- The select stays as the stored value (save, totals and the locked view all read it);
+           it is never shown. People pick by tapping tiles: size, then brand, then colour. -->
       <select id="code" class="hide"></select>
+      <div class="picker hide" id="codePicker">
+        <div class="pk hide" id="pkSchedW">
+          <div class="pkh"><span class="en">Queued on this machine</span><span class="hi">इस मशीन का प्लान</span></div>
+          <div class="ptiles wide" id="pkSched"></div>
+        </div>
+        <div class="pk">
+          <div class="pkh"><span class="en">Size</span><span class="hi">साइज़</span></div>
+          <div class="ptiles" id="pkSize"></div>
+        </div>
+        <div class="pk hide" id="pkBrandW">
+          <div class="pkh"><span class="en">Brand</span><span class="hi">ब्रांड</span></div>
+          <div class="ptiles" id="pkBrand"></div>
+        </div>
+        <div class="pk hide" id="pkColorW">
+          <div class="pkh"><span class="en">Colour</span><span class="hi">रंग</span></div>
+          <div class="ptiles" id="pkColor"></div>
+        </div>
+        <div class="pk hide" id="pkProdW">
+          <div class="pkh"><span class="en">Which one?</span><span class="hi">कौन सा?</span></div>
+          <div class="ptiles wide" id="pkProd"></div>
+        </div>
+        <div class="pksel hide" id="pkSel"></div>
+        <button type="button" class="pkkeep hide" id="pkKeep">
+          <span class="en">Keep current product</span><span class="hi">वही प्रोडक्ट रखें</span>
+        </button>
+      </div>
       <p class="hint hide" id="codeWarn">Changing the product starts a new run — totals reset.
         <span class="hi">नया रन शुरू होगा, कुल शून्य।</span></p>
       <p class="schhint hide" id="schHint"></p>
@@ -411,6 +470,8 @@ var overview = null;   // read mode data
 var state = null;      // entry mode data for the selected machine
 var pendingToast = ''; // confirmation to show once read mode re-renders
 var LAST_OP_KEY = 'ypp_last_operator';
+var PKPRODS = [];       // products with parsed size / brand / colour, for the tile picker
+var PK = { size: '', brand: '', color: '' };
 
 function $(id){ return document.getElementById(id); }
 function nfmt(n){ return (Math.round(n*100)/100).toLocaleString('en-IN'); }
@@ -452,6 +513,7 @@ function setLang(l){
   if (state && !$('entryApp').classList.contains('hide')) {
     $('eMachine').textContent = machineLabel(state.machine);
     updateStepLabels();
+    if (PKPRODS && PKPRODS.length && !$('codePicker').classList.contains('hide')) renderPicker();
   }
 }
 // Hindi by default — the floor reads Hindi; English is the exception, not the baseline.
@@ -603,6 +665,8 @@ function renderEntry(){
     sel.appendChild(o);
   });
 
+  buildPicker();
+
   // Prefill ONLY when there is nothing to lock — a machine's first ever reading, where the
   // alternative is scrolling 65 codes to find what the schedule already knows. Where history
   // exists the schedule stays a suggestion, so the log keeps recording what actually ran
@@ -610,6 +674,8 @@ function renderEntry(){
   // a choice the operator happened to agree with, not a confirmed fact.
   if (!state.code && state.scheduled && state.scheduled.code){
     sel.value = state.scheduled.code;
+    pkSyncFrom(sel.value);
+    renderPicker();
   }
 
   var sh = $('schHint');
@@ -741,8 +807,10 @@ function selectOperator(name){
 function setCodeLocked(locked){
   var sel = $('code');
   $('codeLock').classList.toggle('hide', !locked);
-  sel.classList.toggle('hide', locked);
+  $('codePicker').classList.toggle('hide', locked);
   $('codeWarn').classList.toggle('hide', locked);
+  // "Keep current" only makes sense while a running product exists to go back to.
+  $('pkKeep').classList.toggle('hide', locked || !(state && state.code));
   if (locked){
     var opt = sel.options[sel.selectedIndex];
     // Split the option text back into description and code so the code can be de-emphasised.
@@ -756,6 +824,160 @@ function setCodeLocked(locked){
       $('codeSub').textContent = '';
     }
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Product picker: tap a size, then a brand, then a colour. Each step offers only what exists
+   for the choices before it, so there is never a wrong combination to pick. A step with a
+   single option is chosen for you; if two products still share all three (a few do), a short
+   list of them appears. The hidden select holds the result.
+   --------------------------------------------------------------------------- */
+var COLOR_HEX = { BLACK:'#1c1c1e', GREY:'#9195a1', SILVER:'#c7ccd6', GREEN:'#2f8f4e', MAROON:'#7d2233',
+  GOLDEN:'#c8952a', RED:'#d1374a', YELLOW:'#e0b81f', BLUE:'#2f6fe0', WHITE:'#ffffff' };
+var COLOR_HI = { BLACK:'काला', GREY:'स्लेटी', SILVER:'चांदी', GREEN:'हरा', MAROON:'मैरून', GOLDEN:'सुनहरा',
+  RED:'लाल', YELLOW:'पीला', BLUE:'नीला', WHITE:'सफ़ेद' };
+
+function packParts(raw){
+  var t = String(raw == null ? '' : raw).trim();
+  var m = t.match(/^(\d+(?:\.\d+)?)\s*([A-Za-z]+)$/);
+  if (!m) { var k = t.toUpperCase() || 'OTHER'; return { key: k, num: '', unit: k, litres: Infinity }; }
+  var unit = m[2].toUpperCase();
+  if (unit === 'L' || unit === 'LITRE' || unit === 'LITER') unit = 'LTR';
+  var n = Number(m[1]);
+  return { key: m[1] + ' ' + unit, num: m[1], unit: unit, litres: unit === 'ML' ? n / 1000 : n };
+}
+
+function buildPicker(){
+  PKPRODS = (state.products || []).map(function(p){
+    var pk = packParts(p.pack);
+    return { code: p.code, label: p.label, sched: !!p.sched, pk: pk,
+      brand: String(p.shape || '').trim() || '—',
+      color: String(p.color || '').trim().toUpperCase() || '—' };
+  });
+  PK = { size: '', brand: '', color: '' };
+  pkSyncFrom($('code').value);
+  renderPicker();
+}
+
+function pkProduct(code){
+  return PKPRODS.filter(function(p){ return p.code === code; })[0] || null;
+}
+function pkSyncFrom(code){
+  var p = pkProduct(code);
+  PK = p ? { size: p.pk.key, brand: p.brand, color: p.color } : { size: '', brand: '', color: '' };
+}
+function pkMatching(){
+  return PKPRODS.filter(function(p){
+    return (!PK.size || p.pk.key === PK.size) && (!PK.brand || p.brand === PK.brand)
+      && (!PK.color || p.color === PK.color);
+  });
+}
+function pkUnique(list, fn){
+  var seen = {}, out = [];
+  list.forEach(function(p){ var k = fn(p); if (!seen[k]) { seen[k] = true; out.push(k); } });
+  return out;
+}
+
+function pkSetCode(code){
+  var sel = $('code');
+  if (code) sel.value = code; else sel.selectedIndex = -1;   // none: Save stays disabled
+  $('saved').classList.add('hide');
+  recalc();
+}
+
+function pkChoose(level, v){
+  if (level === 'size')  { PK.size = v; PK.brand = ''; PK.color = ''; }
+  if (level === 'brand') { PK.brand = v; PK.color = ''; }
+  if (level === 'color') { PK.color = v; }
+  // Walk through any step that has only one option.
+  if (PK.size && !PK.brand) {
+    var b = pkUnique(pkMatching(), function(p){ return p.brand; });
+    if (b.length === 1) PK.brand = b[0];
+  }
+  if (PK.size && PK.brand && !PK.color) {
+    var c = pkUnique(pkMatching(), function(p){ return p.color; });
+    if (c.length === 1) PK.color = c[0];
+  }
+  var done = (PK.size && PK.brand && PK.color) ? pkMatching() : [];
+  pkSetCode(done.length === 1 ? done[0].code : '');
+  renderPicker();
+}
+
+function pkTile(cls, attrs, inner){
+  return '<button type="button" class="pt ' + cls + '" ' + attrs + '>' + inner + '</button>';
+}
+function pkSizeInner(pk){
+  if (!pk.num) return '<b>' + pk.key + '</b>';
+  var unit = pk.unit === 'LTR' ? '<small class="en">LTR</small><small class="hi">ली.</small>'
+    : pk.unit === 'ML' ? '<small class="en">ML</small><small class="hi">मि.ली.</small>'
+    : '<small>' + pk.unit + '</small>';
+  return '<b>' + pk.num + '</b>' + unit;
+}
+function pkColorInner(c){
+  var hex = COLOR_HEX[c] || '#9aa0ac';
+  return '<span class="sw" style="background:' + hex + '"></span>' +
+    '<span class="en">' + c + '</span><span class="hi">' + (COLOR_HI[c] || c) + '</span>';
+}
+
+function renderPicker(){
+  var cur = $('code').value, all = PKPRODS;
+
+  // Scheduled for this machine today: one tap.
+  // The server sends them in run order; four is plenty for a tap, and size / brand / colour
+  // below reaches everything else.
+  var sched = all.filter(function(p){ return p.sched; }).slice(0, 4);
+  $('pkSchedW').classList.toggle('hide', !sched.length);
+  $('pkSched').innerHTML = sched.map(function(p){
+    return pkTile('sched' + (p.code === cur ? ' on' : ''), 'data-pk-code="' + p.code + '"',
+      '<span class="nm">' + p.label + '</span><small>' + p.code + '</small>');
+  }).join('');
+
+  // Size: every pack size, smallest first, caps last.
+  var sizes = pkUnique(all, function(p){ return p.pk.key; }).map(function(k){
+    return all.filter(function(p){ return p.pk.key === k; })[0].pk;
+  }).sort(function(a, b){ return a.litres - b.litres; });
+  $('pkSize').innerHTML = sizes.map(function(pk){
+    return pkTile(PK.size === pk.key ? 'on' : '', 'data-pk="size" data-v="' + pk.key + '"', pkSizeInner(pk));
+  }).join('');
+
+  // Brand: only those made in the chosen size.
+  var brands = PK.size ? pkUnique(all.filter(function(p){ return p.pk.key === PK.size; }),
+    function(p){ return p.brand; }).sort() : [];
+  $('pkBrandW').classList.toggle('hide', !PK.size);
+  $('pkBrand').innerHTML = brands.map(function(bn){
+    return pkTile(PK.brand === bn ? 'on' : '', 'data-pk="brand" data-v="' + bn + '"', '<b>' + bn + '</b>');
+  }).join('');
+
+  // Colour: only those made in that size and brand.
+  var colors = (PK.size && PK.brand) ? pkUnique(all.filter(function(p){
+    return p.pk.key === PK.size && p.brand === PK.brand; }), function(p){ return p.color; }).sort() : [];
+  $('pkColorW').classList.toggle('hide', !(PK.size && PK.brand));
+  $('pkColor').innerHTML = colors.map(function(c){
+    return pkTile('row' + (PK.color === c ? ' on' : ''), 'data-pk="color" data-v="' + c + '"', pkColorInner(c));
+  }).join('');
+
+  // Two products with the same size, brand and colour: let the operator say which.
+  var both = (PK.size && PK.brand && PK.color) ? pkMatching() : [];
+  $('pkProdW').classList.toggle('hide', both.length < 2);
+  $('pkProd').innerHTML = both.length < 2 ? '' : both.map(function(p){
+    return pkTile(p.code === cur ? 'on' : '', 'data-pk-code="' + p.code + '"',
+      '<span class="nm">' + p.label + '</span><small>' + p.code + '</small>');
+  }).join('');
+
+  var chosen = pkProduct(cur);
+  var sel = $('pkSel');
+  sel.classList.toggle('hide', !chosen);
+  sel.innerHTML = chosen ? '&#10003; ' + chosen.label + ' · <b>' + chosen.code + '</b>' : '';
+
+  [].forEach.call($('codePicker').querySelectorAll('[data-pk]'), function(b){
+    b.onclick = function(){ pkChoose(b.getAttribute('data-pk'), b.getAttribute('data-v')); };
+  });
+  [].forEach.call($('codePicker').querySelectorAll('[data-pk-code]'), function(b){
+    b.onclick = function(){
+      var code = b.getAttribute('data-pk-code');
+      pkSyncFrom(code); pkSetCode(code); renderPicker();
+    };
+  });
 }
 
 function recalc(){
@@ -842,7 +1064,17 @@ $('counter').addEventListener('input', recalc);
 $('rej').addEventListener('input', recalc);   // net preview depends on rejection
 $('codeEdit').addEventListener('click', function(){
   setCodeLocked(false);
-  $('code').focus();
+  pkSyncFrom($('code').value);
+  renderPicker();
+  var pk = $('codePicker');
+  if (pk.scrollIntoView) pk.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+});
+$('pkKeep').addEventListener('click', function(){
+  if (!state || !state.code) return;
+  $('code').value = state.code;
+  pkSyncFrom(state.code);
+  setCodeLocked(true);
+  recalc();
 });
 $('code').addEventListener('change', function(){ $('saved').classList.add('hide'); recalc(); });
 $('op').addEventListener('change', recalc);
