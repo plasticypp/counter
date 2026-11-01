@@ -25,6 +25,19 @@ var PO_IMPORT_TEMP_PREFIX_ = 'POIMPORT_TMP_';
 
 /** Entry point: Dispatch Tools -> Import PO from PDF. */
 function showPoImportDialog() {
+  // A user who authorised the script before it used UrlFetchApp/Drive has not granted those
+  // scopes, and google.script.run from a dialog never re-prompts: it just fails with "You do
+  // not have permission to call UrlFetchApp.fetch". Catch that here and hand over the link.
+  var auth = ScriptApp.getAuthorizationInfo(ScriptApp.AuthMode.FULL);
+  if (auth.getAuthorizationStatus() === ScriptApp.AuthorizationStatus.REQUIRED) {
+    var prompt = HtmlService.createHtmlOutput(
+      '<p style="font-family:Arial;font-size:14px">PO import needs one more Google permission ' +
+      'for your account.</p><p style="font-family:Arial;font-size:14px"><a href="' +
+      auth.getAuthorizationUrl() + '" target="_blank">Click here to allow it</a>, then run ' +
+      '<b>Import PO from PDF</b> again.</p>').setWidth(420).setHeight(160);
+    SpreadsheetApp.getUi().showModalDialog(prompt, 'Permission needed');
+    return;
+  }
   var html = HtmlService.createHtmlOutputFromFile('PoImportDialog')
     .setWidth(760)
     .setHeight(620);
