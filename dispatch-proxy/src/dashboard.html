@@ -396,6 +396,13 @@
   /* A tinted chip supplies its own background/border/ink inline. The dark ring keeps SILVER
      and other pale fills from dissolving into the white panel. */
   .code-chip.is-tinted, .card-top .code.is-tinted { box-shadow: inset 0 0 0 1px rgba(0,0,0,.22); }
+  /* Product code/name that opens By Product. */
+  [data-goto] { cursor: pointer; }
+  span[data-goto]:not(.code-chip):not(.code):hover { text-decoration: underline; text-underline-offset: 2px; }
+  .code-chip[data-goto]:hover, .card-top .code[data-goto]:hover { filter: brightness(.92); }
+  [data-goto]:focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: 2px; }
+  .goto-flash, .goto-flash td { animation: gotoFlash 1.6s ease-out; }
+  @keyframes gotoFlash { 0%, 40% { background: rgba(37, 99, 235, .22); } 100% { background: transparent; } }
   /* Tablet/mobile: a full-height edge bar carries the colour at a glance, so the card can be
      identified without reading. 5px tablet / 6px mobile — the phone card is shorter, so the
      bar needs slightly more width to register. */
@@ -1179,13 +1186,20 @@ function inkOn(hex) {
    already looking at, instead of adding a second object beside it. The colour NAME still
    travels in the title and, on mobile, as its own metric cell: a filled chip alone is
    unreadable to a colour-deficient reader and unsearchable by text. */
-function codeChipHtml(code, colorName, cls) {
+function codeChipHtml(code, colorName, cls, gotoCode) {
   var hex = productHex(colorName);
   var label = String(colorName == null ? '' : colorName).trim();
   var style = hex ? ' style="background:' + hex + ';color:' + inkOn(hex) + ';border-color:' + hex + '"' : '';
-  return '<span class="' + cls + (hex ? ' is-tinted' : '') + '"'
-    + style + (label ? ' title="' + esc(label) + '"' : '') + '>' + esc(code) + '</span>';
+  var attrs = gotoCode ? gotoAttrs(gotoCode, label) : (label ? ' title="' + esc(label) + '"' : '');
+  return '<span class="' + cls + (hex ? ' is-tinted' : '') + '"' + style + attrs + '>' + esc(code) + '</span>';
 }
+/* Open board, every tab but By Product: a product's code and name open By Product at that
+   product, so all its POs are seen together. Delegated from #main (see gotoProduct). */
+function gotoAttrs(code, note) {
+  return ' data-goto="' + esc(code) + '" role="link" tabindex="0" title="'
+    + esc((note ? note + ' · ' : '') + 'Show all POs of ' + code) + '"';
+}
+function canGoto() { return MODE === 'open' && VIEW !== 'product'; }
 function fmtNum(n) { var v = Number(n); return isFinite(v) ? Math.round(v).toLocaleString('en-IN') : '—'; }
 /* Locale is pinned to en-IN rather than the device default: a manager whose phone is set to
    US locale was reading dates in a different order from the planner's sheet, on a surface
@@ -1483,6 +1497,10 @@ function render() {
 
   var grouped = openGroups(filteredRows, unplannedRows);
   var groups = grouped.groups;
+  var link = canGoto();
+  // By Product names the product in the group header, so its rows name the PO instead.
+  var showPo = function (k) { return k === UNPLANNED_KEY || VIEW === 'product'; };
+  var nameAttrs = function (r) { return link ? gotoAttrs(r.code) : ''; };
   var order = grouped.order;
   GROUP_KEYS = order.slice();
   // Header line for a group: count, and what is still to make, so a folded group still says
@@ -1563,8 +1581,8 @@ function render() {
       '<span class="sub">' + groupSub(grp) + '</span></div></td></tr>';
     grp.rows.forEach(function (r) {
       var extraTd = showRmMb ? '<td class="num">' + fmtNum(r.rmReq) + '</td><td class="num">' + fmtNum(r.mb) + '</td>' : '';
-      html += '<tr' + gm + (fc ? ' class="' + fc.trim() + '"' : '') + '><td class="data-col">' + codeChipHtml(r.code, r.color, 'code-chip') + '</td>' +
-        '<td class="data-col">' + esc(r.name) + (k === UNPLANNED_KEY ? poTag(r) : '') + '</td>' +
+      html += '<tr' + gm + (fc ? ' class="' + fc.trim() + '"' : '') + '><td class="data-col">' + codeChipHtml(r.code, r.color, 'code-chip', link && r.code) + '</td>' +
+        '<td class="data-col"><span' + nameAttrs(r) + '>' + esc(r.name) + '</span>' + (showPo(k) ? poTag(r) : '') + '</td>' +
         '<td class="num">' + fmtNum(r.orderQty) + '</td><td class="num">' + fmtNum(r.supplied) + '</td>' +
         '<td class="num">' + fmtNum(r.readyStock) + '</td>' +
         '<td class="num' + (Number(r.balance) < 0 ? ' is-neg' : '') + '">' + fmtNum(r.balance) + '</td>' + extraTd +
@@ -1594,8 +1612,8 @@ function render() {
     grp.rows.forEach(function (r) {
       var tHex = productHex(r.color);
       html += '<div class="tcard' + foldCls(k) + '" data-gm="' + gi + '"' + (tHex ? ' style="--pc:' + tHex + '"' : '') + '>' +
-        '<span class="code">' + codeChipHtml(r.code, r.color, 'code-chip') +
-        '<small>' + esc(r.name) + (k === UNPLANNED_KEY ? poTag(r) : '') + '</small></span>' +
+        '<span class="code">' + codeChipHtml(r.code, r.color, 'code-chip', link && r.code) +
+        '<small><span' + nameAttrs(r) + '>' + esc(r.name) + '</span>' + (showPo(k) ? poTag(r) : '') + '</small></span>' +
         '<span class="val"><span class="lbl">Qty</span>' + fmtNum(r.orderQty) + '</span>' +
         '<span class="val"><span class="lbl">Supplied</span>' + fmtNum(r.supplied) + '</span>' +
         '<span class="val"><span class="lbl">Ready</span>' + fmtNum(r.readyStock) + '</span>' +
@@ -1686,8 +1704,8 @@ function render() {
         ? codeChipHtml(r.po, r.color, 'code') + mch
         // PO ahead of the name: the name is cut with an ellipsis on a narrow phone, and the PO
         // must survive the cut.
-        : codeChipHtml(r.code, r.color, 'code') + mch + (k === UNPLANNED_KEY ? poTag(r) : '')
-          + '<span class="name">' + esc(r.name) + '</span>';
+        : codeChipHtml(r.code, r.color, 'code', link && r.code) + mch + (k === UNPLANNED_KEY ? poTag(r) : '')
+          + '<span class="name"' + nameAttrs(r) + '>' + esc(r.name) + '</span>';
       var mHex = productHex(r.color);
       html += '<div class="card' + foldCls(k) + '" data-gm="' + gi + '"' + (mHex ? ' style="--pc:' + mHex + '"' : '') + '>' +
         '<div class="card-top">' + topLine + '</div>' +
@@ -2691,19 +2709,49 @@ function scrollToToday() {
 }
 
 
-document.querySelectorAll('.tab').forEach(function (btn) {
-  btn.addEventListener('click', function () {
-    document.querySelectorAll('.tab').forEach(function (b) {
-      b.classList.remove('active');
-      b.setAttribute('aria-selected', 'false');
-    });
-    btn.classList.add('active');
-    btn.setAttribute('aria-selected', 'true');
-    VIEW = btn.dataset.view;
-    VIEW_BY_MODE[MODE] = VIEW;
-    render();
+function selectTab(view) {
+  document.querySelectorAll('.tab').forEach(function (b) {
+    var on = b.dataset.view === view;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
   });
+  VIEW = view;
+  VIEW_BY_MODE[MODE] = VIEW;
+}
+document.querySelectorAll('.tab').forEach(function (btn) {
+  btn.addEventListener('click', function () { selectTab(btn.dataset.view); render(); });
 });
+
+/* Product clicked in By PO / Machine / Color → By Product, at that product's group: unfolded,
+   scrolled into view and briefly highlighted. A line with no machine or priority sits in the
+   "Not started · not planned" group there too, so that group is the fallback. */
+function gotoProduct(code) {
+  selectTab('product');
+  setFolded(code, false);
+  setFolded(UNPLANNED_KEY, false);
+  savePrefs();
+  render();
+  var i = GROUP_KEYS.indexOf(code);
+  if (i < 0) i = GROUP_KEYS.indexOf(UNPLANNED_KEY);
+  if (i < 0) return;
+  var head = Array.prototype.find.call(document.querySelectorAll('#main [data-gh="' + i + '"]'),
+    function (el) { return el.offsetParent !== null; });   // the layout showing at this width
+  if (!head) return;
+  head.scrollIntoView({ block: 'center' });
+  head.classList.add('goto-flash');
+  setTimeout(function () { head.classList.remove('goto-flash'); }, 1600);
+}
+(function () {
+  var mainEl = document.getElementById('main');
+  var go = function (e) {
+    var t = e.target.closest && e.target.closest('[data-goto]');
+    if (!t || !canGoto()) return;
+    e.preventDefault();
+    gotoProduct(t.getAttribute('data-goto'));
+  };
+  mainEl.addEventListener('click', go);
+  mainEl.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') go(e); });
+})();
 
 document.querySelectorAll('.mode').forEach(function (btn) {
   btn.addEventListener('click', function () {
