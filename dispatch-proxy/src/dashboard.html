@@ -1676,6 +1676,16 @@ var PRODUCT_COLORS = {
 function productHex(name) {
   return PRODUCT_COLORS[String(name == null ? '' : name).trim().toUpperCase()] || '';
 }
+/* Silver and gold are metals, and a flat grey/ochre read as GREY and a muddy yellow. They get
+   a brushed-metal gradient (light → dark → bright highlight → dark) wherever a colour fills a
+   surface: code chips and colour blocks. Ink and the card's edge bar still use the flat hex. */
+var METALLIC = {
+  SILVER: 'linear-gradient(135deg,#f4f6f9 0%,#b9c0ca 28%,#ffffff 48%,#9aa2ae 70%,#dfe3e8 100%)',
+  GOLDEN: 'linear-gradient(135deg,#fff3c2 0%,#d9a82e 28%,#fff0a8 48%,#a87912 72%,#e8c25a 100%)'
+};
+function productFill(name) {
+  return METALLIC[String(name == null ? '' : name).trim().toUpperCase()] || productHex(name);
+}
 /* Ink chosen by measured WCAG contrast, never fixed. White text is legible on BLACK (17.0:1)
    and MAROON (9.8:1) but not on SILVER (1.6:1) or GOLDEN (2.7:1); GREEN is the case that
    proves the point — 4.07:1 on white FAILS AA, 4.64:1 on near-black passes. Every current
@@ -1703,7 +1713,7 @@ function inkOn(hex) {
 function codeChipHtml(code, colorName, cls, gotoCode) {
   var hex = productHex(colorName);
   var label = String(colorName == null ? '' : colorName).trim();
-  var style = hex ? ' style="background:' + hex + ';color:' + inkOn(hex) + ';border-color:' + hex + '"' : '';
+  var style = hex ? ' style="background:' + productFill(colorName) + ';color:' + inkOn(hex) + ';border-color:' + hex + '"' : '';
   var attrs = gotoCode ? gotoAttrs(gotoCode, label) : (label ? ' title="' + esc(label) + '"' : '');
   return '<span class="' + cls + (hex ? ' is-tinted' : '') + '"' + style + attrs + '>' + esc(code) + '</span>';
 }
@@ -2480,7 +2490,7 @@ function chipGroup(state, key, label, values, text) {
 function colourChip(state, key, v) {
   var hex = productHex(v);
   return chip('data-chip-key="' + key + '" data-chip-val="' + esc(v) + '" title="' + esc(v) + '" aria-label="' + esc(v) + '"',
-    '<i class="cblock" style="background:' + hex + ';color:' + inkOn(hex) + '" aria-hidden="true"></i>',
+    '<i class="cblock" style="background:' + productFill(v) + ';color:' + inkOn(hex) + '" aria-hidden="true"></i>',
     isOnChip(state, key, v), 'chip-color');
 }
 // "1.2 LTR" → "1.2" (the group label says litres); anything else, e.g. CAPS, as typed.
@@ -2492,7 +2502,7 @@ function sizeChipText(v) {
 function colourBlockHtml(c) {
   var hex = productHex(c);
   if (!hex) return esc(c || '—');
-  return '<i class="cblock cblock-cell" style="background:' + hex + '" title="' + esc(c) + '" aria-hidden="true"></i><span class="sr-only">' + esc(c) + '</span>';
+  return '<i class="cblock cblock-cell" style="background:' + productFill(c) + '" title="' + esc(c) + '" aria-hidden="true"></i><span class="sr-only">' + esc(c) + '</span>';
 }
 function filterLine(inner) { return inner ? '<div class="fline">' + inner + '</div>' : ''; }
 // A small inline dropdown in the same pill style as the sort menu.
@@ -2507,7 +2517,7 @@ function miniSelect(key, label, options, allLabel, state, attr) {
 }
 function colourSwatch(c) {
   var hex = productHex(c);
-  return (hex ? '<i class="pm-sw" style="background:' + hex + '" aria-hidden="true"></i>' : '') + esc(c);
+  return (hex ? '<i class="pm-sw" style="background:' + productFill(c) + '" aria-hidden="true"></i>' : '') + esc(c);
 }
 
 var STATUS_ORDER = ['OTIF', 'Late', 'Short', 'Late + Short', 'On plan', 'Open line'];
