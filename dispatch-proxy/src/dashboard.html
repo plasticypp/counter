@@ -189,7 +189,16 @@
   .filter-list .fl-name mark { background: none; color: var(--primary); font-weight: 700; }
   .filter-list .fl-n { flex: 0 0 auto; color: var(--dim); font-size: var(--fs-xs); }
   .filter-list .fl-empty { color: var(--dim); cursor: default; font-size: var(--fs-xs); }
-  .filter-list .fl-tick { flex: 0 0 14px; color: var(--primary); font-weight: 800; }
+  /* A drawn checkbox (the row itself is the control): empty square when not picked, filled with
+     a white tick when picked. The tick is always in the markup and only coloured in when on. */
+  .filter-list .fl-tick {
+    flex: 0 0 18px; width: 18px; height: 18px; box-sizing: border-box;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 2px solid #8a94ad; border-radius: 4px; background: var(--panel);
+    color: transparent; font-size: 12px; font-weight: 900; line-height: 1;
+  }
+  .filter-list li.is-picked .fl-tick { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .filter-list li[data-i]:hover .fl-tick { border-color: var(--primary); }
   .filter-list li.fl-hint {
     min-height: 0; padding: 4px 12px 6px; cursor: default; color: var(--dim);
     font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
@@ -2828,7 +2837,7 @@ function renderSuggest() {
     filterList.innerHTML = '<li class="fl-hint" role="presentation">' + esc(hint) + '</li>' + SUGGEST.items.map(function (p, i) {
       var on = isPicked(p.code);
       return '<li role="option" id="fl-' + i + '" data-i="' + i + '" aria-selected="' + on + '"' + (on ? ' class="is-picked"' : '') + '>' +
-        '<span class="fl-tick" aria-hidden="true">' + (on ? '✓' : '') + '</span>' +
+        '<span class="fl-tick" aria-hidden="true">✓</span>' +
         codeChipHtml(p.code, p.color, 'code-chip') +
         '<span class="fl-name">' + markWords(p.name, q) + '</span>' +
         '<span class="fl-n">' + p.lines + ' ' + unit + (p.lines === 1 ? '' : 's') + '</span></li>';
