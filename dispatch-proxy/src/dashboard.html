@@ -132,6 +132,58 @@
   .mode + .mode { border-left: 1px solid var(--primary); }
   .mode.active { background: var(--primary); color: #fff; }
 
+  /* Test Reports and Products have no sub-tabs and nothing to download. */
+  body[data-mode="reports"] .tabs, body[data-mode="products"] .tabs,
+  body[data-mode="reports"] .export-wrap, body[data-mode="products"] .export-wrap { display: none; }
+
+  .lang-toggle {
+    display: inline-flex; padding: 0; min-height: 36px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--panel); cursor: pointer; overflow: hidden; font-family: var(--sans);
+    font-size: var(--fs-sm); font-weight: 700;
+  }
+  .lang-toggle span { padding: 8px 10px; color: var(--dim); }
+  html[lang="en"] .lang-toggle [data-lang="en"],
+  html[lang="hi"] .lang-toggle [data-lang="hi"] { background: var(--primary); color: #fff; }
+  .lang-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+  /* ---------------- Test Reports / Products lists ---------------- */
+  .list-head { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); align-items: baseline; padding: var(--sp-2) var(--sp-1); }
+  .list-head b { font-family: var(--mono); color: var(--ink); }
+  .list-head span { font-family: var(--sans); font-size: var(--fs-xs); color: var(--dim); }
+  .list-table { width: 100%; border-collapse: collapse; }
+  .list-table th, .list-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  .list-table th { position: sticky; top: 0; z-index: 1; background: var(--panel-alt); font-family: var(--sans); font-size: var(--fs-xs); color: var(--dim); }
+  .list-table .txt { text-align: left; font-family: var(--sans); }
+  .list-table td.name { white-space: normal; min-width: 180px; font-weight: 600; }
+  .list-table .mono { font-family: var(--mono); }
+  .list-table .faint { color: var(--faint); }
+  .pdf-link {
+    display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 4px 10px;
+    border: 1px solid var(--primary); border-radius: 6px; color: var(--primary);
+    font-family: var(--sans); font-size: var(--fs-xs); font-weight: 700; text-decoration: none;
+  }
+  .pdf-link:hover, .pdf-link:focus-visible { background: var(--primary); color: #fff; outline: none; }
+  .pdf-missing { color: var(--today); font-family: var(--sans); font-size: var(--fs-xs); font-weight: 700; }
+  /* Phone: each row becomes a card. Code and name lead, the PDF button sits beside the code,
+     and the other fields follow as small labelled values, so nothing needs a sideways scroll. */
+  @media (max-width: 620px) {
+    .list-table thead { display: none; }
+    .list-table, .list-table tbody { display: block; }
+    .list-table tr {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px;
+      padding: 10px 12px; border-bottom: 1px solid var(--line);
+    }
+    .list-table td { display: block; padding: 0; border: 0; text-align: left; white-space: normal; }
+    .list-table td.code-cell { order: -3; }
+    .list-table td.pdf-cell { order: -2; margin-left: auto; }
+    .list-table td.name { order: -1; flex: 1 1 100%; min-width: 0; }
+    .list-table td[data-l] { font-size: var(--fs-xs); }
+    .list-table td[data-l]::before {
+      content: attr(data-l) ' '; color: var(--dim); font-family: var(--sans); font-weight: 600;
+    }
+    .pdf-link { min-height: 40px; padding: 6px 14px; }
+  }
+
   .filter-wrap { margin-left: auto; position: relative; min-width: 170px; flex: 1 1 240px; max-width: 340px; }
   /* The box, not the input, carries the border: picked-product tags sit inside it ahead of the
      text and wrap onto further lines. Icon and clear button are pinned to the FIRST line. */
@@ -691,7 +743,11 @@
     .sum-field { flex: 1 1 45%; }
 
     .sum-field select { max-width: none; width: 100%; min-height: 44px; font-size: var(--fs-base); }
-    .mode { flex: 1 1 50%; min-height: 44px; font-size: var(--fs-base); }
+    .modes { flex-wrap: wrap; }
+    .mode { flex: 1 1 45%; min-height: 44px; font-size: var(--fs-base); }
+    .mode:nth-child(3) { border-left: none; }
+    .mode:nth-child(n+3) { border-top: 1px solid var(--primary); }
+    .lang-toggle { min-height: 44px; }
     .filter-wrap { order: 1; margin-left: 0; max-width: none; width: 100%; }
     .search-box { min-height: 44px; padding-left: 34px; }
     .filter-wrap::before, .filter-wrap .clear-x { top: 22px; }
@@ -1011,7 +1067,12 @@
   <div class="modes" role="group" aria-label="Board">
     <button type="button" class="mode active" data-mode="open" aria-pressed="true">Open</button>
     <button type="button" class="mode" data-mode="done" aria-pressed="false">Completed</button>
+    <button type="button" class="mode" data-mode="reports" aria-pressed="false">Test Reports</button>
+    <button type="button" class="mode" data-mode="products" aria-pressed="false">Products</button>
   </div>
+  <!-- Whole-board language switch. Data from the sheet (names, PO numbers, codes) stays as typed. -->
+  <button type="button" class="lang-toggle" id="langToggle" aria-label="Switch language: English / Hindi"
+          title="English / हिंदी"><span data-lang="en">EN</span><span data-lang="hi">हिं</span></button>
   <div class="tabs" role="tablist" aria-label="Group schedule by">
     <button class="tab active" data-mode="open" data-view="po" role="tab" aria-selected="true">By PO</button>
     <button class="tab" data-mode="open" data-view="product" role="tab" aria-selected="false">By Product</button>
@@ -1072,8 +1133,10 @@ var UNPLANNED = [];     // not started, not planned: no Machine/Priority, nothin
 var GRID_START = null;
 var VIEW = 'po';
 var MODE = 'open';                                  // 'open' schedule | 'done' completed lines
-var VIEW_BY_MODE = { open: 'po', done: 'dinvoice' }; // each mode remembers its own tab
+var VIEW_BY_MODE = { open: 'po', done: 'dinvoice', reports: 'reports', products: 'products' }; // each mode remembers its own tab
 var COMPLETED = null;                               // { leadDays, tolerancePct, lines } from the sheet
+var TEST_REPORTS = [];  // TestReports register, newest first: { no, date, invoice, po, code, item, qty, url, failed }
+var PRODUCTS = [];      // Masters without costing: { code, name, shape, size, weight, color, machine, mb, perHour, perDay }
 var FILTER = '';
 var TODAY = null;
 var MACHINES_SEEN = [];
@@ -1222,7 +1285,9 @@ function gotoAttrs(code, note) {
   return ' data-goto="' + esc(code) + '" role="link" tabindex="0" title="'
     + esc((note ? note + ' · ' : '') + 'Show all POs of ' + code) + '"';
 }
-function canGoto() { return MODE === 'open' && VIEW !== 'product'; }
+function canGoto() {
+  return (MODE === 'open' && VIEW !== 'product') || MODE === 'reports' || MODE === 'products';
+}
 function fmtNum(n) { var v = Number(n); return isFinite(v) ? Math.round(v).toLocaleString('en-IN') : '—'; }
 /* Locale is pinned to en-IN rather than the device default: a manager whose phone is set to
    US locale was reading dates in a different order from the planner's sheet, on a surface
@@ -1510,6 +1575,8 @@ function sortOpenOrder(order, groups) {
 
 function render() {
   if (MODE === 'done') { renderCompleted(); return; }
+  if (MODE === 'reports') { renderTestReports(); return; }
+  if (MODE === 'products') { renderProductMaster(); return; }
   var g = groupKeyFns()[VIEW];
   var filteredRows = applyFilter(ROWS);
   var unplannedRows = applyFilter(UNPLANNED);
@@ -2210,6 +2277,126 @@ function renderCompleted() {
 }
 
 /* ---------------------------------------------------------------------------
+   Test Reports and Products — read-only lists beside Open and Completed.
+
+   Both obey the search box (typed words or picked products). A product that still has open
+   lines links to By Product, like the Open tabs; one with nothing open is not a link, because
+   By Product would have nothing to show for it.
+   --------------------------------------------------------------------------- */
+var PRODUCT_INDEX = { src: null, byCode: {} };
+function productByCode(code) {
+  if (PRODUCT_INDEX.src !== PRODUCTS) {
+    PRODUCT_INDEX = { src: PRODUCTS, byCode: {} };
+    PRODUCTS.forEach(function (p) { PRODUCT_INDEX.byCode[p.code] = p; });
+  }
+  return PRODUCT_INDEX.byCode[code] || null;
+}
+function openQtyByCode() {
+  var q = {};
+  ROWS.concat(UNPLANNED).forEach(function (r) {
+    var b = Number(r.balance);
+    if (b > 0) q[r.code] = (q[r.code] || 0) + b;
+  });
+  return q;
+}
+// Every typed word must appear in one of the fields; picked products narrow to those codes.
+function listMatches(code, fields) {
+  if (!passesPicked(code)) return false;
+  if (!FILTER) return true;
+  var hay = fields.join(' ').toLowerCase();
+  return FILTER.toLowerCase().split(/\s+/).filter(Boolean).every(function (w) { return hay.indexOf(w) !== -1; });
+}
+function listEmpty(mainEl, what) {
+  var html = '<div class="empty">' + (PICKED.length || FILTER
+    ? 'No ' + what + ' match this search. <button type="button" class="linkish" id="emptyClear">Clear filter</button>'
+    : 'No ' + what + ' yet.') + '</div>';
+  mainEl.innerHTML = html;
+  var ec = document.getElementById('emptyClear');
+  if (ec) ec.addEventListener('click', clearFilter);
+}
+function fmtFullDate(iso) {
+  var d = new Date(iso);
+  if (isNaN(d)) return esc(iso || '—');
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function listCodeCell(code, color, open) {
+  return codeChipHtml(code, color, 'code-chip', open[code] > 0 && code);
+}
+
+function renderTestReports() {
+  var mainEl = document.getElementById('main');
+  mainEl.setAttribute('aria-busy', 'false');
+  var open = openQtyByCode();
+  var list = TEST_REPORTS.filter(function (t) {
+    return listMatches(t.code, [t.no, t.invoice, t.po, t.code, t.item]);
+  });
+  if (!list.length) { listEmpty(mainEl, 'test reports'); return; }
+
+  var invoices = {};
+  list.forEach(function (t) { invoices[t.invoice] = 1; });
+  var html = '<div class="list-head"><b>' + fmtNum(list.length) + '</b><span>reports</span>' +
+    '<b>' + fmtNum(Object.keys(invoices).length) + '</b><span>invoices</span>' +
+    '<span>Newest first · each PDF opens in a new tab</span></div>';
+  html += '<div class="done-scroll"><table class="list-table"><thead><tr>' +
+    '<th scope="col" class="txt">Report No</th><th scope="col" class="txt">Date</th>' +
+    '<th scope="col" class="txt">Invoice</th><th scope="col" class="txt">PO</th>' +
+    '<th scope="col" class="txt">Code</th><th scope="col" class="txt">Item</th>' +
+    '<th scope="col">Qty</th><th scope="col">Report</th></tr></thead><tbody>';
+  list.forEach(function (t) {
+    var color = (productByCode(t.code) || {}).color;
+    var link = open[t.code] > 0 ? gotoAttrs(t.code) : '';
+    var pdf = t.url
+      ? '<a class="pdf-link" href="' + esc(t.url) + '" target="_blank" rel="noopener">PDF ↗</a>'
+      : t.failed ? '<span class="pdf-missing">Failed</span>' : '<span class="faint">—</span>';
+    // data-l labels each cell when a phone shows the row as a card (see .list-table CSS).
+    html += '<tr><td class="txt mono" data-l="Report No">' + esc(t.no) + '</td>' +
+      '<td class="txt" data-l="Date">' + fmtFullDate(t.date) + '</td>' +
+      '<td class="txt mono" data-l="Invoice">' + esc(t.invoice) + '</td>' +
+      '<td class="txt mono" data-l="PO" title="' + esc(t.po) + '">' + esc(String(t.po).split('/').pop()) + '</td>' +
+      '<td class="txt code-cell">' + listCodeCell(t.code, color, open) + '</td>' +
+      '<td class="txt name"><span' + link + '>' + esc(t.item) + '</span></td>' +
+      '<td data-l="Qty">' + fmtNum(t.qty) + '</td><td class="pdf-cell">' + pdf + '</td></tr>';
+  });
+  mainEl.innerHTML = html + '</tbody></table></div>';
+}
+
+function renderProductMaster() {
+  var mainEl = document.getElementById('main');
+  mainEl.setAttribute('aria-busy', 'false');
+  var open = openQtyByCode();
+  var list = PRODUCTS.filter(function (p) {
+    return listMatches(p.code, [p.code, p.name, p.shape, p.size, p.color]);
+  }).sort(function (a, b) { return String(a.code).localeCompare(String(b.code)); });
+  if (!list.length) { listEmpty(mainEl, 'products'); return; }
+
+  var withOpen = list.filter(function (p) { return open[p.code] > 0; }).length;
+  var html = '<div class="list-head"><b>' + fmtNum(list.length) + '</b><span>products</span>' +
+    '<b>' + fmtNum(withOpen) + '</b><span>with open orders</span>' +
+    '<span>From the Masters sheet · tap a product with open orders to see its POs</span></div>';
+  html += '<div class="done-scroll"><table class="list-table"><thead><tr>' +
+    '<th scope="col" class="txt">Code</th><th scope="col" class="txt">Product</th>' +
+    '<th scope="col" class="txt">Shape</th><th scope="col" class="txt">Pack size</th>' +
+    '<th scope="col">Weight (g)</th><th scope="col" class="txt">Colour</th>' +
+    '<th scope="col">Machine</th><th scope="col">Masterbatch</th>' +
+    '<th scope="col">Output / hr</th><th scope="col">Output / day</th>' +
+    '<th scope="col">Open qty</th></tr></thead><tbody>';
+  list.forEach(function (p) {
+    var link = open[p.code] > 0 ? gotoAttrs(p.code, p.color) : '';
+    var mb = Number(p.mb);
+    var mbTxt = p.mb === '' || p.mb == null ? '—' : (isFinite(mb) && mb < 1 ? +(mb * 100).toFixed(2) + '%' : esc(p.mb));
+    html += '<tr><td class="txt code-cell">' + listCodeCell(p.code, p.color, open) + '</td>' +
+      '<td class="txt name"><span' + link + '>' + esc(p.name) + '</span></td>' +
+      '<td class="txt" data-l="Shape">' + esc(p.shape) + '</td><td class="txt" data-l="Pack size">' + esc(p.size) + '</td>' +
+      '<td data-l="Weight (g)">' + (p.weight === '' ? '—' : esc(p.weight)) + '</td>' +
+      '<td class="txt" data-l="Colour">' + esc(p.color) + '</td>' +
+      '<td data-l="Machine">' + (p.machine === '' ? '—' : esc(p.machine)) + '</td><td data-l="Masterbatch">' + mbTxt + '</td>' +
+      '<td data-l="Output / hr">' + (p.perHour === '' ? '—' : fmtNum(p.perHour)) + '</td><td data-l="Output / day">' + (p.perDay === '' ? '—' : fmtNum(p.perDay)) + '</td>' +
+      '<td data-l="Open qty">' + (open[p.code] > 0 ? '<b>' + fmtNum(open[p.code]) + '</b>' : '<span class="faint">—</span>') + '</td></tr>';
+  });
+  mainEl.innerHTML = html + '</tbody></table></div>';
+}
+
+/* ---------------------------------------------------------------------------
    Summary tab — what was dispatched in a month or a year, per product.
 
    Quantities and value come from SHIPMENTS (every invoice on every line, open lines
@@ -2749,6 +2936,7 @@ document.querySelectorAll('.tab').forEach(function (btn) {
    scrolled into view and briefly highlighted. A line with no machine or priority sits in the
    "Not started · not planned" group there too, so that group is the fallback. */
 function gotoProduct(code) {
+  if (MODE !== 'open') setMode('open');
   selectTab('product');
   setFolded(code, false);
   setFolded(UNPLANNED_KEY, false);
@@ -2778,21 +2966,27 @@ function gotoProduct(code) {
   mainEl.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') go(e); });
 })();
 
+// Switches the board (Open / Completed / Test Reports / Products) without rendering.
+function setMode(mode) {
+  MODE = mode;
+  VIEW = VIEW_BY_MODE[MODE];
+  document.body.setAttribute('data-mode', MODE);
+  document.querySelectorAll('.mode').forEach(function (b) {
+    var on = b.dataset.mode === MODE;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  document.querySelectorAll('.tab').forEach(function (t) {
+    var on = t.dataset.view === VIEW;
+    t.hidden = t.dataset.mode !== MODE;
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+}
+document.body.setAttribute('data-mode', MODE);
 document.querySelectorAll('.mode').forEach(function (btn) {
   btn.addEventListener('click', function () {
-    MODE = btn.dataset.mode;
-    VIEW = VIEW_BY_MODE[MODE];
-    document.querySelectorAll('.mode').forEach(function (b) {
-      var on = b === btn;
-      b.classList.toggle('active', on);
-      b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    });
-    document.querySelectorAll('.tab').forEach(function (t) {
-      var on = t.dataset.view === VIEW;
-      t.hidden = t.dataset.mode !== MODE;
-      t.classList.toggle('active', on);
-      t.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
+    setMode(btn.dataset.mode);
     render();
   });
 });
@@ -2859,6 +3053,10 @@ function productsForMode() {
   };
   if (MODE === 'done') {
     if (COMPLETED) COMPLETED.lines.forEach(function (l) { add(l.code, l.name, l.color, l.supplied); });
+  } else if (MODE === 'products') {
+    PRODUCTS.forEach(function (p) { add(p.code, p.name, p.color, 0); });
+  } else if (MODE === 'reports') {
+    TEST_REPORTS.forEach(function (t) { add(t.code, t.item, (productByCode(t.code) || {}).color, t.qty); });
   } else {
     ROWS.concat(UNPLANNED).forEach(function (r) {
       if (!(Number(r.balance) > 0)) return;     // the Open board only shows lines with a balance
@@ -3079,6 +3277,8 @@ function load(force) {
       UNPLANNED = (data && data.unplanned) || [];
       GRID_START = (data && data.gridStart) ? new Date(data.gridStart) : null;
       COMPLETED = (data && data.completed) || null;
+      TEST_REPORTS = (data && data.testReports) || [];
+      PRODUCTS = (data && data.products) || [];
       // A served-from-fallback payload is real data, but it is NOT current: the upstream is
       // throttling. Don't advance the freshness stamp, or the board would claim to be up to
       // date while showing an older schedule.
@@ -3173,6 +3373,181 @@ document.getElementById('clock').addEventListener('click', function () {
   load(true);
   startPolling();
 });
+
+/* ---------------------------------------------------------------------------
+   English / Hindi.
+
+   The board is written in English. In Hindi mode a translation pass rewrites the page's
+   interface text after every change (a MutationObserver), so every tab, header, status and
+   message switches at once without touching the renderers. Data from the sheet - product
+   names, codes, PO and invoice numbers, colours - is left exactly as typed. The original
+   English is kept on each node, so switching back restores it without a re-render.
+   Exports (Excel/PDF) stay in English.
+   --------------------------------------------------------------------------- */
+var I18N_HI = {
+  'Dispatch': 'डिस्पैच', 'Open': 'चालू', 'Completed': 'पूरे हुए', 'Test Reports': 'टेस्ट रिपोर्ट',
+  'Products': 'प्रोडक्ट', 'Board': 'बोर्ड', 'By PO': 'PO अनुसार', 'By Product': 'प्रोडक्ट अनुसार',
+  'By Machine': 'मशीन अनुसार', 'By Color': 'रंग अनुसार', 'By Invoice': 'इनवॉइस अनुसार', 'Summary': 'सारांश',
+  'Group schedule by': 'शेड्यूल को समूह करें',
+  'Filter by code, product name or PO': 'कोड, प्रोडक्ट नाम या PO से खोजें',
+  'filter code, name or PO…': 'कोड, नाम या PO खोजें…', 'add another product…': 'एक और प्रोडक्ट जोड़ें…',
+  'Clear search and picked products': 'खोज और चुने प्रोडक्ट हटाएँ', 'Matching products': 'मिलते प्रोडक्ट',
+  'Download this view': 'यह दृश्य डाउनलोड करें', 'Excel (.xlsx)': 'एक्सेल (.xlsx)',
+  'Counter Entry': 'काउंटर एंट्री', 'Open Counter Entry in a new tab': 'काउंटर एंट्री नए टैब में खोलें',
+  'Refresh now': 'अभी रीफ़्रेश करें', 'Updated just now': 'अभी अपडेट हुआ', 'loading…': 'लोड हो रहा है…',
+  'Sort': 'क्रम', 'PO no. · newest first': 'PO नं. · नया पहले', 'PO no. · oldest first': 'PO नं. · पुराना पहले',
+  'Most still to supply': 'सबसे ज़्यादा बाकी', 'Earliest start': 'सबसे पहले शुरू', 'Most supplied': 'सबसे ज़्यादा सप्लाई',
+  'Invoice date · newest': 'इनवॉइस तारीख · नया पहले', 'Invoice date · oldest': 'इनवॉइस तारीख · पुराना पहले',
+  'Last delivery · newest': 'आखिरी डिलीवरी · नया पहले',
+  'Machine': 'मशीन', 'Today': 'आज', 'Jump to today': 'आज पर जाएँ', 'Code': 'कोड', 'Item': 'आइटम',
+  'Qty': 'मात्रा', 'Supplied': 'सप्लाई', 'Ready': 'तैयार', 'Balance': 'बाकी', 'Days': 'दिन',
+  'Subtotal': 'उप-योग', 'Total': 'कुल', 'Not started · not planned': 'शुरू नहीं · प्लान नहीं',
+  'Timeline': 'समय-रेखा', 'not scheduled': 'शेड्यूल नहीं', 'Color': 'रंग', 'Colour': 'रंग',
+  'Order Qty': 'ऑर्डर मात्रा', 'Ready Stock': 'तैयार स्टॉक', 'RM Req': 'RM ज़रूरत', 'Filters': 'फ़िल्टर',
+  'Late': 'देर', 'Short': 'कम', 'Late + Short': 'देर + कम', 'On plan': 'प्लान पर',
+  'no invoice': 'इनवॉइस नहीं', 'no order qty': 'ऑर्डर मात्रा नहीं',
+  'This month': 'इस महीने', 'Last month': 'पिछले महीने', 'This year': 'इस साल', 'Dates': 'तारीखें',
+  'Supplied lines': 'सप्लाई लाइनें', 'In full': 'पूरी मात्रा', 'PO Date': 'PO तारीख', 'Due': 'नियत तारीख',
+  'Shipped': 'भेजा', 'vs Due': 'नियत से', 'Line status': 'लाइन स्थिति', 'on due date': 'नियत तारीख पर',
+  'No invoice recorded': 'कोई इनवॉइस दर्ज नहीं', 'Fill': 'भराव', 'Invoices': 'इनवॉइस',
+  'Delivered': 'डिलीवर हुआ', 'Status': 'स्थिति', 'Month': 'महीना', 'Year': 'साल', 'Open line': 'चालू लाइन',
+  'Dispatched': 'डिस्पैच हुआ', 'Value (ex-GST)': 'मूल्य (GST बिना)', 'Avg vs due': 'औसत, नियत से',
+  'Brand': 'ब्रांड', 'Value': 'मूल्य', 'Share': 'हिस्सा', 'Other': 'अन्य', 'Bottle': 'बोतल', 'Cap': 'ढक्कन',
+  'All POs': 'सभी PO', 'All colours': 'सभी रंग', 'All types': 'सभी प्रकार',
+  'Summary period': 'सारांश अवधि', 'Period': 'अवधि', 'Previous month': 'पिछला महीना', 'Next month': 'अगला महीना',
+  'reports': 'रिपोर्ट', 'invoices': 'इनवॉइस', 'products': 'प्रोडक्ट', 'with open orders': 'चालू ऑर्डर वाले',
+  'Newest first · each PDF opens in a new tab': 'नया पहले · हर PDF नए टैब में खुलेगी',
+  'From the Masters sheet · tap a product with open orders to see its POs':
+    'मास्टर्स शीट से · चालू ऑर्डर वाले प्रोडक्ट पर टैप करें, उसके PO दिखेंगे',
+  'Report No': 'रिपोर्ट नं.', 'Date': 'तारीख', 'Invoice': 'इनवॉइस', 'Report': 'रिपोर्ट', 'Failed': 'असफल',
+  'Product': 'प्रोडक्ट', 'Shape': 'आकार', 'Pack size': 'पैक साइज़', 'Weight (g)': 'वज़न (ग्राम)',
+  'Masterbatch': 'मास्टरबैच', 'Output / hr': 'उत्पादन / घंटा', 'Output / day': 'उत्पादन / दिन',
+  'Open qty': 'चालू मात्रा', 'Clear filter': 'फ़िल्टर हटाएँ', 'Clear products': 'प्रोडक्ट हटाएँ',
+  'Switch language: English / Hindi': 'भाषा बदलें: English / हिंदी',
+};
+// Whole-string patterns for text built from numbers.
+var I18N_HI_PATTERNS = [
+  [/^Machine (\d+)$/, 'मशीन $1'], [/^Months of (\d+)$/, '$1 के महीने'],
+  [/^(\d+) ?d late$/, '$1 दिन देर'], [/^(\d+) ?d early$/, '$1 दिन पहले'],
+  [/^(\d+) days?$/, '$1 दिन'],
+  [/^On time (.+)$/, 'समय पर $1'],
+  [/^Total · (\d+) products?$/, 'कुल · $1 प्रोडक्ट'],
+  [/^(.+) · Show all POs of (.+)$/, '$1 · $2 के सभी PO देखें'],
+  [/^Show all POs of (.+)$/, '$1 के सभी PO देखें'],
+  [/^No (.+) match this search\.$/, 'इस खोज से कोई $1 नहीं मिला।'],
+];
+// Phrases inside longer sentences. Lower-case UI words only: sheet data is upper-case.
+var I18N_HI_PHRASES = [
+  ['click to refresh', 'रीफ़्रेश के लिए क्लिक करें'], ['may be out of date', 'शायद पुराना है'],
+  ['Server busy — showing', 'सर्वर व्यस्त — दिखा रहे हैं'], ['Paused at', 'रुका:'], ['min ago', 'मिनट पहले'],
+  ['Updated', 'अपडेट'], ['Collapse all', 'सब बंद करें'], ['Expand all', 'सब खोलें'],
+  ['still on plan, judged once taken off it', 'अभी प्लान पर, हटने पर जाँचे जाएँगे'],
+  ['change these on the sheet’s Settings tab.', 'इन्हें शीट के Settings टैब में बदलें।'],
+  ['have no invoice, invoice date or order qty', 'में इनवॉइस, इनवॉइस तारीख या ऑर्डर मात्रा नहीं'],
+  ['Due = PO date +', 'नियत तारीख = PO तारीख +'], ['Delivered = last invoice date', 'डिलीवर = आखिरी इनवॉइस तारीख'],
+  ['In full = supplied ≥', 'पूरी मात्रा = सप्लाई ≥'], ['of order qty', 'ऑर्डर मात्रा का'],
+  ['judged on', 'जाँचे गए'], ['month to date', 'महीने में अब तक'], ['of same days last month', 'पिछले महीने के इन्हीं दिनों का'],
+  ['test reports', 'टेस्ट रिपोर्ट'], ['No supplied lines', 'कोई सप्लाई लाइन नहीं'], ['No jobs match', 'कोई काम नहीं मिला'],
+  ['No open lines for', 'कोई चालू लाइन नहीं:'], ['match these filters', 'इन फ़िल्टर से'],
+  ['on machine', 'मशीन'], ['yet', 'अभी तक'], ['days', 'दिन'],
+  ['items', 'आइटम'], ['item', 'आइटम'], ['lines', 'लाइनें'], ['line', 'लाइन'], ['left', 'बाकी'],
+  ['pcs', 'पीस'], ['supplied', 'सप्लाई'], ['on plan', 'प्लान पर'], ['of', '/'],
+];
+var I18N_ATTRS = ['title', 'placeholder', 'aria-label', 'data-l'];
+var LANG = (function () {
+  try { return localStorage.getItem('dispatch.lang') === 'hi' ? 'hi' : 'en'; } catch (e) { return 'en'; }
+})();
+
+function phraseRe(p) {
+  var body = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp((/^\w/.test(p) ? '\\b' : '') + body + (/\w$/.test(p) ? '\\b' : ''), 'g');
+}
+I18N_HI_PHRASES = I18N_HI_PHRASES.map(function (p) { return [phraseRe(p[0]), p[1]]; });
+
+function toHindi(text) {
+  var core = text.trim();
+  if (!core || !/[A-Za-z]/.test(core)) return text;
+  var out = I18N_HI[core];
+  var sym = core.match(/^([^A-Za-z0-9]+)(.+)$/);    // "◷ Late", "– no invoice": status symbol + word
+  if (out === undefined && sym && I18N_HI[sym[2]] !== undefined) out = sym[1] + I18N_HI[sym[2]];
+  if (out === undefined) {
+    for (var i = 0; i < I18N_HI_PATTERNS.length && out === undefined; i++) {
+      if (I18N_HI_PATTERNS[i][0].test(core)) out = core.replace(I18N_HI_PATTERNS[i][0], I18N_HI_PATTERNS[i][1]);
+    }
+  }
+  if (out === undefined) {
+    if (!/[a-z]/.test(core)) return text;   // upper-case: sheet data (names, codes, colours)
+    out = core;
+    I18N_HI_PHRASES.forEach(function (p) { out = out.replace(p[0], p[1]); });
+  }
+  return out === core ? text : text.replace(core, out);
+}
+
+function i18nSkip(el) { return !el || el.closest('script,style,.lang-toggle'); }
+function translatePage() {
+  var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  var n;
+  while ((n = walker.nextNode())) {
+    if (n.__hi !== undefined && n.nodeValue === n.__hi) continue;   // already done
+    if (i18nSkip(n.parentElement)) continue;
+    var hi = toHindi(n.nodeValue);
+    if (hi === n.nodeValue) continue;
+    n.__en = n.nodeValue; n.__hi = hi; n.nodeValue = hi;
+  }
+  document.querySelectorAll('[title],[placeholder],[aria-label],[data-l]').forEach(function (el) {
+    if (i18nSkip(el)) return;
+    var memo = el.__i18n || (el.__i18n = {});
+    I18N_ATTRS.forEach(function (a) {
+      var v = el.getAttribute(a);
+      if (v == null || (memo[a] && memo[a].hi === v)) return;
+      var hi = toHindi(v);
+      if (hi === v) return;
+      memo[a] = { en: v, hi: hi };
+      el.setAttribute(a, hi);
+    });
+  });
+}
+function restoreEnglish() {
+  var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  var n;
+  while ((n = walker.nextNode())) {
+    if (n.__hi !== undefined && n.nodeValue === n.__hi) n.nodeValue = n.__en;
+  }
+  document.querySelectorAll('[title],[placeholder],[aria-label],[data-l]').forEach(function (el) {
+    var memo = el.__i18n;
+    if (!memo) return;
+    Object.keys(memo).forEach(function (a) {
+      if (el.getAttribute(a) === memo[a].hi) el.setAttribute(a, memo[a].en);
+    });
+    el.__i18n = {};
+  });
+}
+
+var i18nQueued = false;
+var i18nObserver = new MutationObserver(function () {
+  if (LANG !== 'hi' || i18nQueued) return;
+  i18nQueued = true;
+  // Microtask, not a frame: the English must never be painted before it is replaced.
+  Promise.resolve().then(function () { i18nQueued = false; translatePage(); });
+});
+function applyLang() {
+  document.documentElement.lang = LANG;
+  i18nObserver.disconnect();
+  if (LANG === 'hi') {
+    translatePage();
+    i18nObserver.observe(document.body, {
+      childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: I18N_ATTRS,
+    });
+  } else {
+    restoreEnglish();
+  }
+}
+document.getElementById('langToggle').addEventListener('click', function () {
+  LANG = LANG === 'hi' ? 'en' : 'hi';
+  try { localStorage.setItem('dispatch.lang', LANG); } catch (e) { /* not remembered */ }
+  applyLang();
+});
+applyLang();
 
 load();
 startPolling();

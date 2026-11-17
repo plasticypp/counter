@@ -429,6 +429,8 @@ function generateTestReportsForInvoice_(invoiceNo, col) {
 /** "Test Reports/<FY>" under the #YPPPO folder, created on first use. */
 function trReportsFolder_(ss, fy) {
   var parent = getOrCreateSubfolder_(ss, 'Test Reports');
+  // The board links straight to these PDFs for people who are not signed in.
+  try { shareTestReportsFolder_(ss); } catch (e) { /* sharing is a convenience, not a gate */ }
   var existing = parent.getFoldersByName(fy);
   return existing.hasNext() ? existing.next() : parent.createFolder(fy);
 }

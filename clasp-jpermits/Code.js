@@ -1096,6 +1096,8 @@ function getDashboardData_(ss) {
     unplanned: unplannedOut,
     gridStart: gridStartDD ? gridStartDD.toISOString() : null,
     completed: getCompletedData_(ss, headersDD, rowsDD, nameByCodeDD),
+    testReports: getBoardTestReports_(ss),
+    products: getBoardProducts_(mastersDD),
   };
 }
 
@@ -2250,6 +2252,8 @@ function doPost(e) {
     }
   } else if (action === 'getDashboardData') {
     result = getDashboardData_(ss);
+  } else if (action === 'shareTestReports') {
+    result = shareTestReportsFolder_(ss);
   } else if (action === 'getProductSummary') {
     // Aggregates Dispatch by Code: total Order Qty, Supplied, RM Req, MB. Optional filters:
     // body.machine (exact match), body.poContains (substring on PO Number), body.dateFrom /
