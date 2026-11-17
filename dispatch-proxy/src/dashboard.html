@@ -711,6 +711,12 @@
   .group-bar .chip { min-height: 36px; }
   /* A folded group keeps its header and subtotal; only its lines go. */
   .is-folded { display: none !important; }
+  .po-tag {
+    display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; vertical-align: 1px;
+    background: #e6ebfa; color: var(--primary); font-family: var(--mono); font-size: var(--fs-2xs); font-weight: 700;
+    white-space: nowrap;
+  }
+  .card-top .po-tag { flex: 0 0 auto; margin-left: 0; }
   .table-scroll .gh-pin { position: sticky; left: var(--sp-3); display: inline-block; }
   [data-gh] { cursor: pointer; }
   .gtoggle {
@@ -1411,6 +1417,13 @@ function compactBar(r) {
 // `unplanned` (not started, not planned) is always one group at the very bottom, whatever the
 // tab or sort: it has no machine, no priority and no dates to sort or group it by.
 var UNPLANNED_KEY = '~unplanned';
+// The unplanned group mixes POs, and By PO otherwise names the PO only in the group header,
+// so each of its lines shows its own PO. Short form on screen, full number on hover.
+function poTag(r) {
+  var full = String(r.po || '');
+  if (!full) return '';
+  return ' <span class="po-tag" title="' + esc(full) + '">PO ' + esc(full.split('/').pop()) + '</span>';
+}
 function openGroups(rows, unplanned) {
   var g = groupKeyFns()[VIEW];
   var groups = {};
@@ -1551,7 +1564,7 @@ function render() {
     grp.rows.forEach(function (r) {
       var extraTd = showRmMb ? '<td class="num">' + fmtNum(r.rmReq) + '</td><td class="num">' + fmtNum(r.mb) + '</td>' : '';
       html += '<tr' + gm + (fc ? ' class="' + fc.trim() + '"' : '') + '><td class="data-col">' + codeChipHtml(r.code, r.color, 'code-chip') + '</td>' +
-        '<td class="data-col">' + esc(r.name) + '</td>' +
+        '<td class="data-col">' + esc(r.name) + (k === UNPLANNED_KEY ? poTag(r) : '') + '</td>' +
         '<td class="num">' + fmtNum(r.orderQty) + '</td><td class="num">' + fmtNum(r.supplied) + '</td>' +
         '<td class="num">' + fmtNum(r.readyStock) + '</td>' +
         '<td class="num' + (Number(r.balance) < 0 ? ' is-neg' : '') + '">' + fmtNum(r.balance) + '</td>' + extraTd +
@@ -1582,7 +1595,7 @@ function render() {
       var tHex = productHex(r.color);
       html += '<div class="tcard' + foldCls(k) + '" data-gm="' + gi + '"' + (tHex ? ' style="--pc:' + tHex + '"' : '') + '>' +
         '<span class="code">' + codeChipHtml(r.code, r.color, 'code-chip') +
-        '<small>' + esc(r.name) + '</small></span>' +
+        '<small>' + esc(r.name) + (k === UNPLANNED_KEY ? poTag(r) : '') + '</small></span>' +
         '<span class="val"><span class="lbl">Qty</span>' + fmtNum(r.orderQty) + '</span>' +
         '<span class="val"><span class="lbl">Supplied</span>' + fmtNum(r.supplied) + '</span>' +
         '<span class="val"><span class="lbl">Ready</span>' + fmtNum(r.readyStock) + '</span>' +
@@ -1671,7 +1684,9 @@ function render() {
       // the tint describes the row, not the PO number itself.
       var topLine = (VIEW === 'product')
         ? codeChipHtml(r.po, r.color, 'code') + mch
-        : codeChipHtml(r.code, r.color, 'code') + mch
+        // PO ahead of the name: the name is cut with an ellipsis on a narrow phone, and the PO
+        // must survive the cut.
+        : codeChipHtml(r.code, r.color, 'code') + mch + (k === UNPLANNED_KEY ? poTag(r) : '')
           + '<span class="name">' + esc(r.name) + '</span>';
       var mHex = productHex(r.color);
       html += '<div class="card' + foldCls(k) + '" data-gm="' + gi + '"' + (mHex ? ' style="--pc:' + mHex + '"' : '') + '>' +
@@ -2528,7 +2543,9 @@ function openViewForExport() {
   g.order.forEach(function (k) {
     var grp = g.groups[k];
     grp.rows.forEach(function (r) {
-      out.push([grp.label, r.code, r.name, r.color].concat(byPo ? [] : [r.po]).concat([r.machine, r.priority]).concat(nums(r))
+      // The unplanned group is not one PO, so in By PO its rows carry their PO in the group cell.
+      var gLabel = (byPo && k === UNPLANNED_KEY) ? grp.label + ' · ' + r.po : grp.label;
+      out.push([gLabel, r.code, r.name, r.color].concat(byPo ? [] : [r.po]).concat([r.machine, r.priority]).concat(nums(r))
         .concat([d(r.start), d(r.end), r.days || '']));
     });
     out.push(['', 'Subtotal', '', ''].concat(byPo ? [] : ['']).concat(['', '']).concat(nums(sumRows(grp.rows))).concat(['', '', '']));
