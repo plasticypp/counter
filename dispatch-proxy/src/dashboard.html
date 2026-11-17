@@ -155,6 +155,16 @@
   .list-table th { position: sticky; top: 0; z-index: 1; background: var(--panel-alt); font-family: var(--sans); font-size: var(--fs-xs); color: var(--dim); }
   .list-table .txt { text-align: left; font-family: var(--sans); }
   .list-table td.name { white-space: normal; min-width: 180px; font-weight: 600; }
+  /* Products: the whole row opens By Product. Hover tints the row and draws the name's
+     underline; keyboard focus outlines the row. */
+  .pm-table tr[data-goto] { cursor: pointer; transition: background .12s; }
+  .pm-table tr[data-goto]:hover { background: #eef2fd; }
+  .pm-table tr[data-goto]:hover td.name span { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+  .pm-table tr[data-goto]:active { background: #e3eafc; }
+  .pm-table tr[data-goto]:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+  .pm-table tr:not([data-goto]) td.name { color: var(--dim); }
+  .pm-filters { padding: var(--sp-2) var(--sp-1) 0; }
+  @media (prefers-reduced-motion: reduce) { .pm-table tr[data-goto] { transition: none; } }
   .list-table .mono { font-family: var(--mono); }
   .list-table .faint { color: var(--faint); }
   .pdf-link {
@@ -2360,20 +2370,68 @@ function renderTestReports() {
   mainEl.innerHTML = html + '</tbody></table></div>';
 }
 
+/* Products tab filters. Kept for the session (not stored): the list is short and a stale
+   filter left on a shared wall tablet would hide products from the next person. */
+var PM_FILTER_DEFAULT = { shape: '', size: '', color: '', machine: '', orders: '' };
+var PM_FILTER = Object.assign({}, PM_FILTER_DEFAULT);
+
+function suppliedCodes() {
+  var s = {};
+  if (COMPLETED) COMPLETED.lines.forEach(function (l) { s[l.code] = 1; });
+  return s;
+}
+// 'open' (has a balance on the plan), 'done' (only supplied lines) or 'none' (never ordered).
+function orderState(code, open, supplied) {
+  return open[code] > 0 ? 'open' : supplied[code] ? 'done' : 'none';
+}
+function productFilterBar(all) {
+  var any = Object.keys(PM_FILTER).some(function (k) { return PM_FILTER[k]; });
+  var opt = function (k) { return uniqueSorted(all.map(function (p) { return p[k]; }).map(String)); };
+  return '<div class="sum-bar pm-filters">' +
+    sumSelect('shape', 'Shape', opt('shape'), 'All shapes', PM_FILTER, 'data-pm') +
+    sumSelect('size', 'Pack size', opt('size'), 'All sizes', PM_FILTER, 'data-pm') +
+    sumSelect('color', 'Colour', opt('color'), 'All colours', PM_FILTER, 'data-pm') +
+    sumSelect('machine', 'Machine', opt('machine'), 'All machines', PM_FILTER, 'data-pm') +
+    sumSelect('orders', 'Orders', [{ value: 'open', text: 'With open orders' },
+      { value: 'done', text: 'Supplied, none open' }, { value: 'none', text: 'Never ordered' }],
+      'All products', PM_FILTER, 'data-pm') +
+    (any ? chip('id="pmReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '') +
+    '</div>';
+}
+function passesProductFilter(p, open, supplied) {
+  return ['shape', 'size', 'color', 'machine'].every(function (k) {
+    return !PM_FILTER[k] || String(p[k]) === PM_FILTER[k];
+  }) && (!PM_FILTER.orders || orderState(p.code, open, supplied) === PM_FILTER.orders);
+}
+function bindProductFilters(mainEl) {
+  bindChips(mainEl, PM_FILTER, 'data-pm');
+  var rs = document.getElementById('pmReset');
+  if (rs) rs.addEventListener('click', function () { PM_FILTER = Object.assign({}, PM_FILTER_DEFAULT); render(); });
+}
+
 function renderProductMaster() {
   var mainEl = document.getElementById('main');
   mainEl.setAttribute('aria-busy', 'false');
   var open = openQtyByCode();
-  var list = PRODUCTS.filter(function (p) {
+  var supplied = suppliedCodes();
+  var searched = PRODUCTS.filter(function (p) {
     return listMatches(p.code, [p.code, p.name, p.shape, p.size, p.color]);
-  }).sort(function (a, b) { return String(a.code).localeCompare(String(b.code)); });
-  if (!list.length) { listEmpty(mainEl, 'products'); return; }
+  });
+  var list = searched.filter(function (p) { return passesProductFilter(p, open, supplied); })
+    .sort(function (a, b) { return String(a.code).localeCompare(String(b.code)); });
+  var bar = productFilterBar(PRODUCTS);
+  if (!list.length) {
+    listEmpty(mainEl, 'products');
+    mainEl.insertAdjacentHTML('afterbegin', bar);
+    bindProductFilters(mainEl);
+    return;
+  }
 
   var withOpen = list.filter(function (p) { return open[p.code] > 0; }).length;
-  var html = '<div class="list-head"><b>' + fmtNum(list.length) + '</b><span>products</span>' +
+  var html = bar + '<div class="list-head"><b>' + fmtNum(list.length) + '</b><span>products</span>' +
     '<b>' + fmtNum(withOpen) + '</b><span>with open orders</span>' +
-    '<span>From the Masters sheet · tap a product with open orders to see its POs</span></div>';
-  html += '<div class="done-scroll"><table class="list-table"><thead><tr>' +
+    '<span>From the Masters sheet · tap a product to see its POs</span></div>';
+  html += '<div class="done-scroll"><table class="list-table pm-table"><thead><tr>' +
     '<th scope="col" class="txt">Code</th><th scope="col" class="txt">Product</th>' +
     '<th scope="col" class="txt">Shape</th><th scope="col" class="txt">Pack size</th>' +
     '<th scope="col">Weight (g)</th><th scope="col" class="txt">Colour</th>' +
@@ -2381,19 +2439,26 @@ function renderProductMaster() {
     '<th scope="col">Output / hr</th><th scope="col">Output / day</th>' +
     '<th scope="col">Open qty</th></tr></thead><tbody>';
   list.forEach(function (p) {
-    var link = open[p.code] > 0 ? gotoAttrs(p.code, p.color) : '';
+    // The whole row is the link. Open orders → Open › By Product; only supplied lines →
+    // Completed › By Product; never ordered → nothing to show, so not a link.
+    var state = orderState(p.code, open, supplied);
+    var link = state === 'none' ? '' : ' data-goto="' + esc(p.code) + '" role="link" tabindex="0" title="' +
+      esc((state === 'open' ? 'Show all POs of ' : 'Show supplied POs of ') + p.code) + '"';
     var mb = Number(p.mb);
     var mbTxt = p.mb === '' || p.mb == null ? '—' : (isFinite(mb) && mb < 1 ? +(mb * 100).toFixed(2) + '%' : esc(p.mb));
-    html += '<tr><td class="txt code-cell">' + listCodeCell(p.code, p.color, open) + '</td>' +
-      '<td class="txt name"><span' + link + '>' + esc(p.name) + '</span></td>' +
+    var openCell = state === 'open' ? '<b>' + fmtNum(open[p.code]) + '</b>'
+      : state === 'done' ? '<span class="st st-na">Completed</span>' : '<span class="faint">—</span>';
+    html += '<tr' + link + '><td class="txt code-cell">' + codeChipHtml(p.code, p.color, 'code-chip') + '</td>' +
+      '<td class="txt name"><span>' + esc(p.name) + '</span></td>' +
       '<td class="txt" data-l="Shape">' + esc(p.shape) + '</td><td class="txt" data-l="Pack size">' + esc(p.size) + '</td>' +
       '<td data-l="Weight (g)">' + (p.weight === '' ? '—' : esc(p.weight)) + '</td>' +
       '<td class="txt" data-l="Colour">' + esc(p.color) + '</td>' +
       '<td data-l="Machine">' + (p.machine === '' ? '—' : esc(p.machine)) + '</td><td data-l="Masterbatch">' + mbTxt + '</td>' +
       '<td data-l="Output / hr">' + (p.perHour === '' ? '—' : fmtNum(p.perHour)) + '</td><td data-l="Output / day">' + (p.perDay === '' ? '—' : fmtNum(p.perDay)) + '</td>' +
-      '<td data-l="Open qty">' + (open[p.code] > 0 ? '<b>' + fmtNum(open[p.code]) + '</b>' : '<span class="faint">—</span>') + '</td></tr>';
+      '<td data-l="Open qty">' + openCell + '</td></tr>';
   });
   mainEl.innerHTML = html + '</tbody></table></div>';
+  bindProductFilters(mainEl);
 }
 
 /* ---------------------------------------------------------------------------
@@ -2936,6 +3001,7 @@ document.querySelectorAll('.tab').forEach(function (btn) {
    scrolled into view and briefly highlighted. A line with no machine or priority sits in the
    "Not started · not planned" group there too, so that group is the fallback. */
 function gotoProduct(code) {
+  if (!(openQtyByCode()[code] > 0) && suppliedCodes()[code]) { gotoSuppliedProduct(code); return; }
   if (MODE !== 'open') setMode('open');
   selectTab('product');
   setFolded(code, false);
@@ -2944,6 +3010,20 @@ function gotoProduct(code) {
   render();
   var i = GROUP_KEYS.indexOf(code);
   if (i < 0) i = GROUP_KEYS.indexOf(UNPLANNED_KEY);
+  highlightGroup(i);
+}
+/* A product with nothing open: Completed › By Product at that product. The Completed filters
+   (dates, status ...) can hide it, so they are cleared when it is not in the list. */
+function gotoSuppliedProduct(code) {
+  setMode('done');
+  selectTab('dproduct');
+  setFolded(code, false);
+  savePrefs();
+  render();
+  if (GROUP_KEYS.indexOf(code) < 0) { LIST = Object.assign({}, LIST_DEFAULT); render(); }
+  highlightGroup(GROUP_KEYS.indexOf(code));
+}
+function highlightGroup(i) {
   if (i < 0) return;
   var head = Array.prototype.find.call(document.querySelectorAll('#main [data-gh="' + i + '"]'),
     function (el) { return el.offsetParent !== null; });   // the layout showing at this width
@@ -3418,14 +3498,17 @@ var I18N_HI = {
   'Summary period': 'सारांश अवधि', 'Period': 'अवधि', 'Previous month': 'पिछला महीना', 'Next month': 'अगला महीना',
   'reports': 'रिपोर्ट', 'invoices': 'इनवॉइस', 'products': 'प्रोडक्ट', 'with open orders': 'चालू ऑर्डर वाले',
   'Newest first · each PDF opens in a new tab': 'नया पहले · हर PDF नए टैब में खुलेगी',
-  'From the Masters sheet · tap a product with open orders to see its POs':
-    'मास्टर्स शीट से · चालू ऑर्डर वाले प्रोडक्ट पर टैप करें, उसके PO दिखेंगे',
+  'From the Masters sheet · tap a product to see its POs':
+    'मास्टर्स शीट से · किसी प्रोडक्ट पर टैप करें, उसके PO दिखेंगे',
   'Report No': 'रिपोर्ट नं.', 'Date': 'तारीख', 'Invoice': 'इनवॉइस', 'Report': 'रिपोर्ट', 'Failed': 'असफल',
   'Product': 'प्रोडक्ट', 'Shape': 'आकार', 'Pack size': 'पैक साइज़', 'Weight (g)': 'वज़न (ग्राम)',
   'Masterbatch': 'मास्टरबैच', 'Output / hr': 'उत्पादन / घंटा', 'Output / day': 'उत्पादन / दिन',
   'Open qty': 'चालू मात्रा', 'Clear filter': 'फ़िल्टर हटाएँ', 'Clear products': 'प्रोडक्ट हटाएँ',
   'Switch language: English / Hindi': 'भाषा बदलें: English / हिंदी',
   'Select one or more products': 'एक या अधिक प्रोडक्ट चुनें',
+  'Clear': 'हटाएँ', 'Orders': 'ऑर्डर', 'All products': 'सभी प्रोडक्ट', 'All shapes': 'सभी आकार',
+  'All sizes': 'सभी साइज़', 'All machines': 'सभी मशीनें', 'With open orders': 'चालू ऑर्डर वाले',
+  'Supplied, none open': 'सप्लाई हुए, कोई चालू नहीं', 'Never ordered': 'कभी ऑर्डर नहीं',
 };
 // Whole-string patterns for text built from numbers.
 var I18N_HI_PATTERNS = [
@@ -3436,6 +3519,7 @@ var I18N_HI_PATTERNS = [
   [/^Total · (\d+) products?$/, 'कुल · $1 प्रोडक्ट'],
   [/^(.+) · Show all POs of (.+)$/, '$1 · $2 के सभी PO देखें'],
   [/^Show all POs of (.+)$/, '$1 के सभी PO देखें'],
+  [/^Show supplied POs of (.+)$/, '$1 के सप्लाई हुए PO देखें'],
   [/^No (.+) match this search\.$/, 'इस खोज से कोई $1 नहीं मिला।'],
 ];
 // Phrases inside longer sentences. Lower-case UI words only: sheet data is upper-case.
