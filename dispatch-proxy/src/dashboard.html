@@ -396,13 +396,36 @@
   /* A tinted chip supplies its own background/border/ink inline. The dark ring keeps SILVER
      and other pale fills from dissolving into the white panel. */
   .code-chip.is-tinted, .card-top .code.is-tinted { box-shadow: inset 0 0 0 1px rgba(0,0,0,.22); }
-  /* Product code/name that opens By Product. */
+  /* Product code/name that opens By Product. Hovering EITHER one lights up both (the row's
+     :has), so the pair reads as one link: the chip lifts with a blue ring, the name turns blue
+     and an underline draws in. A press sinks it. */
   [data-goto] { cursor: pointer; }
-  span[data-goto]:not(.code-chip):not(.code):hover { text-decoration: underline; text-underline-offset: 2px; }
-  .code-chip[data-goto]:hover, .card-top .code[data-goto]:hover { filter: brightness(.92); }
-  [data-goto]:focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: 2px; }
-  .goto-flash, .goto-flash td { animation: gotoFlash 1.6s ease-out; }
-  @keyframes gotoFlash { 0%, 40% { background: rgba(37, 99, 235, .22); } 100% { background: transparent; } }
+  .code-chip[data-goto], .card-top .code[data-goto] {
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  span[data-goto]:not(.code-chip):not(.code) {
+    background: linear-gradient(currentColor, currentColor) 0 100% / 0 1.5px no-repeat;
+    transition: color .15s ease, background-size .2s ease;
+  }
+  :is(tr, .tcard, .card):has([data-goto]:hover) :is(.code-chip, .code)[data-goto] {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 8px rgba(30, 64, 175, .28), 0 0 0 2px var(--primary);
+  }
+  :is(tr, .tcard, .card):has([data-goto]:hover) span[data-goto]:not(.code-chip):not(.code) {
+    color: var(--primary); background-size: 100% 1.5px;
+  }
+  [data-goto]:active { transform: scale(.96) !important; }
+  [data-goto]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  /* Where the click landed: a blue flash, then the group stays marked (left bar + tint) until
+     the next re-render — a tab change, a filter, a sort. */
+  .is-goto td:not(.date-td), .tcard.is-goto, .card.is-goto, .tcard-group.is-goto, .card-group-head.is-goto { background: #e3eafc !important; }
+  .group-row.is-goto td:first-child, .tcard-group.is-goto, .card-group-head.is-goto { box-shadow: inset 4px 0 0 var(--primary); }
+  .goto-flash td, .tcard-group.goto-flash, .card-group-head.goto-flash { animation: gotoFlash 1.4s ease-out; }
+  @keyframes gotoFlash { 0%, 35% { background: #b9cbf7; } 100% { background: #e3eafc; } }
+  @media (prefers-reduced-motion: reduce) {
+    [data-goto], [data-goto] * { transition: none !important; }
+    .goto-flash td, .tcard-group.goto-flash, .card-group-head.goto-flash { animation: none; }
+  }
   /* Tablet/mobile: a full-height edge bar carries the colour at a glance, so the card can be
      identified without reading. 5px tablet / 6px mobile — the phone card is shorter, so the
      bar needs slightly more width to register. */
@@ -2737,9 +2760,11 @@ function gotoProduct(code) {
   var head = Array.prototype.find.call(document.querySelectorAll('#main [data-gh="' + i + '"]'),
     function (el) { return el.offsetParent !== null; });   // the layout showing at this width
   if (!head) return;
+  document.querySelectorAll('#main [data-gh="' + i + '"], #main [data-gm="' + i + '"]')
+    .forEach(function (el) { el.classList.add('is-goto'); });
   head.scrollIntoView({ block: 'center' });
   head.classList.add('goto-flash');
-  setTimeout(function () { head.classList.remove('goto-flash'); }, 1600);
+  setTimeout(function () { head.classList.remove('goto-flash'); }, 1400);
 }
 (function () {
   var mainEl = document.getElementById('main');
