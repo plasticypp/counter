@@ -940,16 +940,6 @@
     .chipbar .sum-scope { flex: 0 0 auto; width: auto; order: 0; }
   }
 
-  /* Chip-row filter panels (Products look) used on every tab: rows stack full width. */
-  .chip-panel.pm-filters { flex-wrap: nowrap; align-items: stretch; gap: 6px; padding: var(--sp-2) var(--sp-3); }
-  /* Products: the Filters chip that folds the rows exists only on phones. */
-  .pm-fold-bar { display: none; gap: 6px; }
-  @media (max-width: 620px) {
-    .pm-fold-bar { display: flex; }
-    .pm-foldable:not(.is-open) .pm-row { display: none; }
-    .pm-foldable .pm-clear-row { display: none; }
-    .chip-panel.pm-filters { padding: var(--sp-2); }
-  }
 
   /* Completed / Summary figures: a compact strip, not a wall of tiles (2026-11-17). The
      method note folds behind a summary line. */
@@ -1141,7 +1131,12 @@
   header .counter-link .lbl { display: none; }
   .clock { min-height: 32px; padding: 4px 6px; }
   .clock:not(.is-stale) .fresh-lbl { display: none; }
-  .filter-wrap { flex: 1 1 200px; }
+  .filter-wrap { flex: 1 1 150px; min-width: 140px; max-width: 280px; }
+  .tab { padding: 6px 10px; }
+  /* Below 1500px the header row is tight: the YPP mark stays, the "Dispatch" word goes. */
+  @media (max-width: 1500px) { header h1 { display: none; } }
+  .list-head .lh-hint { flex: 1 1 auto; }
+  @media (max-width: 620px) { .list-head .lh-hint { display: none; } .list-head { align-items: center; } }
   .tab { padding: 6px 12px; }
   .mode { padding: 6px 12px; min-height: 32px; }
   .lang-toggle { min-height: 32px; }
@@ -1169,11 +1164,13 @@
   .toolbar .stepper .chip { padding: 4px 10px; }
   .toolbar .stepper b { font-size: var(--fs-sm); min-width: 0; }
   .toolbar .stepper small { font-size: var(--fs-2xs); color: var(--dim); font-weight: 600; }
-  /* Collapse / expand all: a small glowing round button at the toolbar's right end. */
+  /* Collapse / expand all: a glowing pill in the header beside the time — arrows plus the word
+     (word hidden on phones, where the header row is full). */
+  .fold-btn[hidden] { display: none !important; }
   .fold-btn {
-    flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer;
-    background: var(--primary); color: #fff; font-size: 18px; line-height: 1;
-    display: inline-flex; align-items: center; justify-content: center;
+    flex: 0 0 auto; height: 34px; padding: 0 12px 0 10px; border-radius: 999px; border: 0; cursor: pointer;
+    background: var(--primary); color: #fff; font-family: var(--sans); font-size: var(--fs-xs); font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap;
     box-shadow: 0 0 0 3px rgba(30,64,175,.15), 0 0 14px rgba(30,64,175,.55);
     animation: foldGlow 2.4s ease-in-out infinite;
   }
@@ -1184,6 +1181,25 @@
     50% { box-shadow: 0 0 0 3px rgba(30,64,175,.22), 0 0 18px rgba(30,64,175,.7); }
   }
   @media (prefers-reduced-motion: reduce) { .fold-btn { animation: none; } }
+  header .fold-btn { margin-left: auto; }
+  header .fold-btn + .clock { margin-left: 0; }
+
+  /* Filter lines: labelled chip groups side by side, one line, swipe/scroll sideways. */
+  .fline {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: thin;
+    padding: 2px 0 4px; margin: 0 0 6px; min-width: 0;
+  }
+  .fline > * { flex: 0 0 auto; }
+  .fgroup { display: inline-flex; align-items: center; gap: 4px; padding-left: 10px; border-left: 1px solid var(--line); }
+  .fline > .fgroup:first-child, .fline > .chip-clear + .fgroup { border-left: 0; padding-left: 0; }
+  .fg-label {
+    font-family: var(--sans); font-size: 10px; font-weight: 800; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--dim); margin-right: 2px;
+  }
+  .fline .chip { min-height: 30px; padding: 3px 10px; font-size: var(--fs-xs); }
+  .fline .tb-sort { min-height: 30px; }
+  .pm-filters { display: block; padding: 0; }
+  .legend .fline { margin-bottom: 4px; }
 
   /* Open: the toolbar replaces the old legend block; machine pills are small "● M3" chips. */
   .legend { padding: 0; gap: 0; display: block; }
@@ -1274,8 +1290,11 @@
     .tab { min-height: 36px; padding: 6px 12px; font-size: var(--fs-sm); }
     main { padding: 6px; }
     .toolbar .chip, .toolbar .jump-today, .tb-sort, .toolbar .sum-scope .mode { min-height: 36px; }
-    .tb-scroll { scrollbar-width: none; }
-    .tb-scroll::-webkit-scrollbar { display: none; }
+    .tb-scroll, .fline { scrollbar-width: none; }
+    .tb-scroll::-webkit-scrollbar, .fline::-webkit-scrollbar { display: none; }
+    .fline .chip { min-height: 34px; }
+    header .fold-btn { width: 36px; height: 36px; padding: 0; margin-left: 0; }
+    header .fold-btn .fold-lbl { display: none; }
     .tb-sort select { max-width: 150px; }
     .pm-filters .chip { min-height: 34px; }
     .trend { grid-template-columns: repeat(12, 100px); scrollbar-width: none; }
@@ -1351,6 +1370,8 @@
   </a>
   <!-- Freshness, not decoration: the dot reflects measured age and is always paired with
        the text stamp, never carrying the meaning on its own. -->
+  <!-- Collapse / expand every group of the tab on screen. Hidden on tabs without groups. -->
+  <button type="button" class="fold-btn" id="foldAll" hidden></button>
   <button type="button" class="clock" id="clock" title="Refresh now">
     <span class="dot" id="freshDot"></span><span id="freshText">loading…</span>
   </button>
@@ -1400,18 +1421,15 @@ function passesOpenFilter(r) {
 }
 function openFilterChips() {
   var n = selCount(OPEN_F, OPEN_F_KEYS);
-  return panelChip(OPEN_F, n) +
-    (n ? chip('id="openReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '');
+  return n ? chip('id="openReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '';
 }
 function openFilterPanel(rows) {
   var pick = function (f) { return uniqueSorted(rows.map(f)).map(String); };
-  if (OPEN_F._panel !== 'more') return '';
-  return '<div class="chip-panel pm-filters">' +
-    chipRow(OPEN_F, 'type', 'Type', pick(function (r) { return productType(r.code); })) +
-    chipRow(OPEN_F, 'color', 'Colour', pick(function (r) { return r.color; }), colourSwatch) +
-    chipRow(OPEN_F, 'shape', 'Shape', pick(function (r) { return masterOf(r.code).shape; })) +
-    chipRow(OPEN_F, 'size', 'Pack size', pick(function (r) { return masterOf(r.code).size; })) +
-    '</div>';
+  return filterLine(
+    chipGroup(OPEN_F, 'type', 'Type', pick(function (r) { return productType(r.code); })) +
+    chipGroup(OPEN_F, 'color', 'Colour', pick(function (r) { return r.color; }), colourSwatch) +
+    chipGroup(OPEN_F, 'shape', 'Shape', pick(function (r) { return masterOf(r.code).shape; })) +
+    chipGroup(OPEN_F, 'size', 'Pack size', pick(function (r) { return masterOf(r.code).size; })));
 }
 // Board totals as one slim strip under the toolbar (was a tall block after the table).
 function openTotalsHtml(grand, showRmMb) {
@@ -1498,25 +1516,27 @@ function sortSelectHtml() {
       return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
     }).join('') + '</select></label>';
 }
-function foldBtnState() {
-  var anyOpen = GROUP_KEYS.some(function (k) { return !isFolded(k); });
-  return anyOpen ? { icon: '⊟', label: 'Collapse all' } : { icon: '⊞', label: 'Expand all' };
-}
-function foldBtnHtml() {
-  var s = foldBtnState();
-  return '<button type="button" class="fold-btn" id="foldAll" title="' + s.label + '" aria-label="' + s.label + '">' +
-    '<span aria-hidden="true">' + s.icon + '</span></button>';
-}
-// inner = chips/menus that scroll; the fold button stays at the right edge.
-function toolbarHtml(inner, withFold) {
-  return '<div class="toolbar"><div class="tb-scroll">' + inner + '</div>' + (withFold ? foldBtnHtml() : '') + '</div>';
-}
-function refreshFoldAll(mainEl) {
-  var b = mainEl.querySelector('#foldAll');
+/* Collapse / expand all lives in the HEADER beside the freshness time (one static button),
+   so it is always in the same place. Shown only while the tab on screen has groups. Icons:
+   arrows pointing in = collapse, pointing out = expand; the word is beside them on wider
+   screens and in the tooltip / aria-label everywhere. */
+var FOLD_ICON_IN = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 2l4 4 4-4M4 14l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+var FOLD_ICON_OUT = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 6l4-4 4 4M4 10l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function syncFoldBtn() {
+  var b = document.getElementById('foldAll');
   if (!b) return;
-  var s = foldBtnState();
-  b.title = s.label; b.setAttribute('aria-label', s.label);
-  b.firstChild.textContent = s.icon;
+  var grouped = !!document.querySelector('#main [data-gh]');
+  b.hidden = !grouped;
+  if (!grouped) return;
+  var anyOpen = GROUP_KEYS.some(function (k) { return !isFolded(k); });
+  var label = anyOpen ? 'Collapse all' : 'Expand all';
+  if (b.dataset.state === label) return;
+  b.dataset.state = label;
+  b.title = label; b.setAttribute('aria-label', label);
+  b.innerHTML = (anyOpen ? FOLD_ICON_IN : FOLD_ICON_OUT) + '<span class="fold-lbl">' + label + '</span>';
+}
+function toolbarHtml(inner) {
+  return '<div class="toolbar"><div class="tb-scroll">' + inner + '</div></div>';
 }
 // Folding is done in place, not by re-rendering: a re-render resets the scroll position, and
 // the reader is usually halfway down the list when they fold the group they just finished.
@@ -1528,15 +1548,8 @@ function bindGroupControls(mainEl) {
       setFolded(key, fold);
       mainEl.querySelectorAll('[data-gm="' + i + '"]').forEach(function (el) { el.classList.toggle('is-folded', fold); });
       mainEl.querySelectorAll('[data-gh="' + i + '"] .gtoggle').forEach(function (b) { b.setAttribute('aria-expanded', String(!fold)); });
-      refreshFoldAll(mainEl);
+      syncFoldBtn();
     });
-  });
-  var fa = mainEl.querySelector('#foldAll');
-  if (fa) fa.addEventListener('click', function () {
-    var fold = GROUP_KEYS.some(function (k) { return !isFolded(k); });
-    FOLDED[VIEW] = {};
-    if (fold) GROUP_KEYS.forEach(function (k) { setFolded(k, true); });
-    render();
   });
   var gs = mainEl.querySelector('#groupSort');
   if (gs) gs.addEventListener('change', function () { PREFS.sort[VIEW] = gs.value; savePrefs(); render(); });
@@ -1926,6 +1939,16 @@ function sortOpenOrder(order, groups) {
 }
 
 function render() {
+  renderView();
+  syncFoldBtn();
+}
+document.getElementById('foldAll').addEventListener('click', function () {
+  var fold = GROUP_KEYS.some(function (k) { return !isFolded(k); });
+  FOLDED[VIEW] = {};
+  if (fold) GROUP_KEYS.forEach(function (k) { setFolded(k, true); });
+  render();
+});
+function renderView() {
   if (MODE === 'done') { renderCompleted(); return; }
   if (MODE === 'reports') { renderTestReports(); return; }
   if (MODE === 'products') { renderProductMaster(); return; }
@@ -2006,7 +2029,7 @@ function render() {
     tb += '<button type="button" class="chip chip-clear" id="machineClear"><span aria-hidden="true">✕</span> All machines</button>';
   }
   tb += '<button type="button" class="jump-today" id="jumpToday"><i class="today-dot" aria-hidden="true"></i>Today</button>';
-  var html = '<div class="legend">' + toolbarHtml(tb, true) + '</div>' + openFilterPanel(pool) + openTotalsHtml(grand, showRmMb);
+  var html = '<div class="legend">' + toolbarHtml(tb) + openFilterPanel(pool) + '</div>' + openTotalsHtml(grand, showRmMb);
 
   // Full words, not "Sup"/"D" — the abbreviations were unglossable and inconsistent with the
   // other two renderings, which spelled the same metrics differently again.
@@ -2337,14 +2360,26 @@ function toggleSel(sel, v) {
   sel = sel || [];
   return sel.indexOf(v) === -1 ? sel.concat([v]) : sel.filter(function (x) { return x !== v; });
 }
-// One labelled row of chips (the Products-tab look). Wraps on a wide screen, swipes sideways
-// on a phone, so even a long list costs one line there.
-function chipRow(state, key, label, values, text) {
+/* Always-open filters, two lines per tab: line 1 is the toolbar, line 2 is a filter line of
+   labelled chip groups ("TYPE Cap Bottle │ COLOUR ● BLACK ● BLUE …"). Each line scrolls
+   sideways when it is wider than the screen, so the block never grows past two lines. */
+function chipGroup(state, key, label, values, text) {
   if (!values.length) return '';
-  return '<div class="pm-row"><span class="pm-label">' + esc(label) + '</span><div class="pm-chips">' +
+  return '<span class="fgroup" role="group" aria-label="' + esc(label) + '"><span class="fg-label">' + esc(label) + '</span>' +
     values.map(function (v) {
       return chip('data-chip-key="' + key + '" data-chip-val="' + esc(v) + '"', text ? text(v) : esc(v), isOnChip(state, key, v));
-    }).join('') + '</div></div>';
+    }).join('') + '</span>';
+}
+function filterLine(inner) { return inner ? '<div class="fline">' + inner + '</div>' : ''; }
+// A small inline dropdown in the same pill style as the sort menu.
+function miniSelect(key, label, options, allLabel, state, attr) {
+  var html = '<label class="tb-sort"><span class="fg-label">' + esc(label) + '</span><select ' + attr + '="' + key + '">';
+  if (allLabel) html += '<option value="">' + esc(allLabel) + '</option>';
+  options.forEach(function (o) {
+    var v = typeof o === 'object' ? o.value : o, t = typeof o === 'object' ? o.text : o;
+    html += '<option value="' + esc(v) + '"' + (String(state[key]) === String(v) ? ' selected' : '') + '>' + esc(t) + '</option>';
+  });
+  return html + '</select></label>';
 }
 function colourSwatch(c) {
   var hex = productHex(c);
@@ -2360,26 +2395,22 @@ function statusChips(state, statuses) {
   }).join('');
 }
 
-function panelChip(state, count) {
-  return chip('data-panel="more"', '<span aria-hidden="true">⚲</span> Filters' +
-    (count ? ' <b class="chip-badge">' + count + '</b>' : ''), state._panel === 'more' || count > 0);
-}
-
 function machineOptions(items) {
   return uniqueSorted(items.map(function (x) { return x.usualMachine; })).map(function (m) {
     return { value: String(m), text: 'Machine ' + m };
   });
 }
-// Brand / Type / Colour / Usual machine as multi-select chip rows — the Filters panel of the
-// Completed tabs and Summary. `items` carry brand, code, color and usualMachine.
-function moreChipRows(state, items) {
+// Brand / Type / Colour / Usual machine chip groups — the second filter line of the Completed
+// tabs and Summary. `items` carry brand, code, color and usualMachine. `extra` is appended
+// (Summary's PO and sort menus).
+function attrFilterLine(state, items, extra) {
   var pick = function (f) { return uniqueSorted(items.map(f)).map(String); };
-  return '<div class="chip-panel pm-filters">' +
-    chipRow(state, 'brand', 'Brand', pick(function (x) { return x.brand; })) +
-    chipRow(state, 'type', 'Type', pick(function (x) { return productType(x.code); })) +
-    chipRow(state, 'color', 'Colour', pick(function (x) { return x.color; }), colourSwatch) +
-    chipRow(state, 'machine', 'Machine', pick(function (x) { return x.usualMachine; })) +
-    '</div>';
+  return filterLine(
+    chipGroup(state, 'type', 'Type', pick(function (x) { return productType(x.code); })) +
+    chipGroup(state, 'machine', 'Machine', pick(function (x) { return x.usualMachine; })) +
+    chipGroup(state, 'brand', 'Brand', pick(function (x) { return x.brand; })) +
+    chipGroup(state, 'color', 'Colour', pick(function (x) { return x.color; }), colourSwatch) +
+    (extra || ''));
 }
 
 function istToday() { return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10); }
@@ -2401,10 +2432,9 @@ function listControls(withGroups) {
   var more = selCount(LIST, LIST_MORE);
   var custom = LIST.preset === 'custom' && (LIST.from || LIST.to);
   var any = LIST.status.length || more || LIST.from || LIST.to;
-  // Filters and Clear lead the row: on a phone the row scrolls sideways, and what is active
-  // must be visible without scrolling. An active date preset also shows on the Filters chip.
-  var html = toolbarHtml(panelChip(LIST, more + (LIST.from || LIST.to ? 1 : 0)) +
-    (any ? chip('id="listReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '') +
+  // Clear leads the row: on a phone the row scrolls sideways, and the way out of a filter
+  // must be visible without scrolling.
+  var html = toolbarHtml((any ? chip('id="listReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '') +
     (withGroups ? sortSelectHtml() : '') +
     statusChips(LIST, uniqueSorted(all.map(statusWord))) +
     '<span class="chip-sep" aria-hidden="true"></span>' +
@@ -2412,10 +2442,8 @@ function listControls(withGroups) {
     chip('data-preset="lm"', 'Last month', LIST.preset === 'lm') +
     chip('data-preset="ty"', 'This year', LIST.preset === 'ty') +
     chip('data-panel="dates"', '<span aria-hidden="true">📅</span> ' + (custom ? esc((LIST.from || '…') + ' → ' + (LIST.to || '…')) : 'Dates'),
-      LIST._panel === 'dates' || custom), withGroups);
-  if (LIST._panel === 'more') {
-    html += moreChipRows(LIST, all);
-  } else if (LIST._panel === 'dates') {
+      LIST._panel === 'dates' || custom)) + attrFilterLine(LIST, all);
+  if (LIST._panel === 'dates') {
     html += '<div class="chip-panel">' +
       sumSelect('dateBy', 'Date by', [{ value: 'delivered', text: VIEW === 'dinvoice' ? 'Invoice date' : 'Delivered date' },
         { value: 'po', text: 'PO date' }], '', LIST, 'data-list') +
@@ -2755,31 +2783,23 @@ function suppliedCodes() {
 function orderState(code, open, supplied) {
   return open[code] > 0 ? 'open' : supplied[code] ? 'done' : 'none';
 }
-/* Filters are multi-select chip rows (see chipRow): tap to add a value, tap again to drop it.
-   Rows wrap on a wide screen and scroll sideways on a phone, so the list stays near the top. */
+/* Filters: two always-open lines of labelled multi-select chip groups (see chipGroup) — tap
+   to add a value, tap again to drop it. Each line swipes sideways when wider than the screen. */
 function productFilterBar(all) {
   var any = selCount(PM_FILTER, Object.keys(PM_FILTER)) > 0;
   var opt = function (k) { return uniqueSorted(all.map(function (p) { return p[k]; }).map(String)); };
-  var ORDERS = { open: 'With open orders', done: 'Supplied, none open', none: 'Never ordered' };
-  // On a phone the five rows fold behind one Filters chip (desktop shows them always).
-  var n = selCount(PM_FILTER, Object.keys(PM_FILTER));
-  return '<div class="pm-filters pm-foldable' + (PM_PANEL ? ' is-open' : '') + '">' +
-    '<div class="pm-fold-bar">' +
-      chip('id="pmPanel" aria-controls="pmTable"', '<span aria-hidden="true">⚲</span> Filters' +
-        (n ? ' <b class="chip-badge">' + n + '</b>' : ''), PM_PANEL || n > 0) +
-      (any ? chip('id="pmReset2"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '') +
-    '</div>' +
-    chipRow(PM_FILTER, 'orders', 'Orders', ['open', 'done', 'none'], function (v) { return esc(ORDERS[v]); }) +
-    chipRow(PM_FILTER, 'shape', 'Shape', opt('shape')) +
-    chipRow(PM_FILTER, 'size', 'Pack size', opt('size')) +
-    chipRow(PM_FILTER, 'color', 'Colour', opt('color'), colourSwatch) +
-    chipRow(PM_FILTER, 'machine', 'Machine', opt('machine')) +
-    (any ? '<div class="pm-row pm-clear-row">' + chip('id="pmReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') + '</div>' : '') +
+  var ORDERS = { open: 'Open orders', done: 'Supplied only', none: 'Never ordered' };
+  return '<div class="pm-filters">' +
+    filterLine((any ? chip('id="pmReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '') +
+      chipGroup(PM_FILTER, 'orders', 'Orders', ['open', 'done', 'none'], function (v) { return esc(ORDERS[v]); }) +
+      chipGroup(PM_FILTER, 'machine', 'Machine', opt('machine')) +
+      chipGroup(PM_FILTER, 'size', 'Pack size', opt('size'))) +
+    filterLine(chipGroup(PM_FILTER, 'shape', 'Shape', opt('shape')) +
+      chipGroup(PM_FILTER, 'color', 'Colour', opt('color'), colourSwatch)) +
     '</div>';
 }
 // Shape → Output / day are folded away by default; only Code, Product and Open qty show.
 var PM_DETAILS = false;
-var PM_PANEL = false;   // phones: filter rows unfolded
 function passesProductFilter(p, open, supplied) {
   return ['shape', 'size', 'color', 'machine'].every(function (k) {
     return inSel(PM_FILTER[k], p[k]);
@@ -2787,12 +2807,8 @@ function passesProductFilter(p, open, supplied) {
 }
 function bindProductFilters(mainEl) {
   bindChips(mainEl, PM_FILTER, 'data-pm');
-  ['pmReset', 'pmReset2'].forEach(function (id) {
-    var rs = document.getElementById(id);
-    if (rs) rs.addEventListener('click', function () { PM_FILTER = Object.assign({}, PM_FILTER_DEFAULT); render(); });
-  });
-  var pp = document.getElementById('pmPanel');
-  if (pp) pp.addEventListener('click', function () { PM_PANEL = !PM_PANEL; render(); });
+  var rs = document.getElementById('pmReset');
+  if (rs) rs.addEventListener('click', function () { PM_FILTER = Object.assign({}, PM_FILTER_DEFAULT); render(); });
   var dt = document.getElementById('pmDetails');
   if (dt) dt.addEventListener('click', function () { PM_DETAILS = !PM_DETAILS; render(); });
 }
@@ -2818,7 +2834,7 @@ function renderProductMaster() {
   var withOpen = list.filter(function (p) { return open[p.code] > 0; }).length;
   var html = bar + '<div class="list-head"><b>' + fmtNum(list.length) + '</b><span>products</span>' +
     '<b>' + fmtNum(withOpen) + '</b><span>with open orders</span>' +
-    '<span>From the Masters sheet · tap a product to see its POs</span>' +
+    '<span class="lh-hint">From the Masters sheet · tap a product to see its POs</span>' +
     chip('id="pmDetails" aria-controls="pmTable"', PM_DETAILS ? '▾ Hide details' : '▸ Show details', PM_DETAILS) + '</div>';
   html += '<div class="done-scroll"><table id="pmTable" class="list-table pm-table' + (PM_DETAILS ? '' : ' is-compact') + '"><thead><tr>' +
     '<th scope="col" class="txt">Code</th><th scope="col" class="txt">Product</th>' +
@@ -2980,16 +2996,12 @@ function summaryControls(all, soFar) {
       '<button type="button" class="chip" data-step="1" aria-label="Next ' + (isYear ? 'year' : 'month') + '">›</button>' +
     '</div>' +
     '<span class="chip-sep" aria-hidden="true"></span>' +
-    panelChip(SUM, more + (SUM.status.length ? 1 : 0)) +
     (any ? chip('id="sumReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '') +
-    statusChips(SUM, SUM_STATUSES), false);
-  if (SUM._panel === 'more') {
-    // PO stays a dropdown: there are dozens, too many for a chip row.
-    html += moreChipRows(SUM, all) + '<div class="chip-panel">' +
-      sumSelect('po', 'PO', uniqueSorted(all.map(function (s) { return s.po; })), 'All POs') +
-      sumSelect('sort', 'Sort by', Object.keys(SUM_SORTS).map(function (k) { return { value: k, text: SUM_SORTS[k] }; })) +
-      '</div>';
-  }
+    miniSelect('sort', '⇅', Object.keys(SUM_SORTS).map(function (k) { return { value: k, text: SUM_SORTS[k] }; }), '', SUM, 'data-sum') +
+    statusChips(SUM, SUM_STATUSES)) +
+    // PO stays a dropdown: there are dozens, too many for chips.
+    attrFilterLine(SUM, all,
+      miniSelect('po', 'PO', uniqueSorted(all.map(function (s) { return s.po; })), 'All POs', SUM, 'data-sum'));
   return html;
 }
 
@@ -3926,6 +3938,8 @@ var I18N_HI = {
   'Clear': 'हटाएँ', 'Show details': 'पूरी जानकारी दिखाएँ', 'Hide details': 'जानकारी छिपाएँ', 'Orders': 'ऑर्डर', 'All products': 'सभी प्रोडक्ट', 'All shapes': 'सभी आकार',
   'All sizes': 'सभी साइज़', 'All machines': 'सभी मशीनें', 'With open orders': 'चालू ऑर्डर वाले',
   'Supplied, none open': 'सप्लाई हुए, कोई चालू नहीं', 'Never ordered': 'कभी ऑर्डर नहीं',
+  'Open orders': 'चालू ऑर्डर', 'Supplied only': 'सिर्फ़ सप्लाई हुए', 'Collapse all': 'सब बंद करें', 'Expand all': 'सब खोलें',
+  'All POs': 'सभी PO',
 };
 // Whole-string patterns for text built from numbers.
 var I18N_HI_PATTERNS = [
