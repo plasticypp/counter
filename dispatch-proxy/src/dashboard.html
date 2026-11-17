@@ -3379,8 +3379,9 @@ document.getElementById('clock').addEventListener('click', function () {
 
    The board is written in English. In Hindi mode a translation pass rewrites the page's
    interface text after every change (a MutationObserver), so every tab, header, status and
-   message switches at once without touching the renderers. Data from the sheet - product
-   names, codes, PO and invoice numbers, colours - is left exactly as typed. The original
+   message switches at once without touching the renderers. Product names, colours and shapes
+   are translated word by word (productWordsToHindi); codes, PO and invoice numbers and dates
+   are left exactly as typed. The original
    English is kept on each node, so switching back restores it without a re-render.
    Exports (Excel/PDF) stay in English.
    --------------------------------------------------------------------------- */
@@ -3424,6 +3425,7 @@ var I18N_HI = {
   'Masterbatch': 'मास्टरबैच', 'Output / hr': 'उत्पादन / घंटा', 'Output / day': 'उत्पादन / दिन',
   'Open qty': 'चालू मात्रा', 'Clear filter': 'फ़िल्टर हटाएँ', 'Clear products': 'प्रोडक्ट हटाएँ',
   'Switch language: English / Hindi': 'भाषा बदलें: English / हिंदी',
+  'Select one or more products': 'एक या अधिक प्रोडक्ट चुनें',
 };
 // Whole-string patterns for text built from numbers.
 var I18N_HI_PATTERNS = [
@@ -3449,7 +3451,7 @@ var I18N_HI_PHRASES = [
   ['judged on', 'जाँचे गए'], ['month to date', 'महीने में अब तक'], ['of same days last month', 'पिछले महीने के इन्हीं दिनों का'],
   ['test reports', 'टेस्ट रिपोर्ट'], ['No supplied lines', 'कोई सप्लाई लाइन नहीं'], ['No jobs match', 'कोई काम नहीं मिला'],
   ['No open lines for', 'कोई चालू लाइन नहीं:'], ['match these filters', 'इन फ़िल्टर से'],
-  ['on machine', 'मशीन'], ['yet', 'अभी तक'], ['days', 'दिन'],
+  ['on machine', 'मशीन'], ['yet', 'अभी तक'], ['open', 'चालू'], ['days', 'दिन'],
   ['items', 'आइटम'], ['item', 'आइटम'], ['lines', 'लाइनें'], ['line', 'लाइन'], ['left', 'बाकी'],
   ['pcs', 'पीस'], ['supplied', 'सप्लाई'], ['on plan', 'प्लान पर'], ['of', '/'],
 ];
@@ -3464,9 +3466,41 @@ function phraseRe(p) {
 }
 I18N_HI_PHRASES = I18N_HI_PHRASES.map(function (p) { return [phraseRe(p[0]), p[1]]; });
 
-function toHindi(text) {
+/* Product names, colours and shapes from the sheet, word by word. Generic words are
+   translated (BOTTLE, CAP, LTR, colours); brand names are written in Devanagari. Only
+   upper-case tokens (and myTVS / ml) are touched, and a word running into digits is part of a
+   code (PMCON0248, INV26404, M1), so it is skipped. PO numbers and codes stay as typed. */
+var I18N_HI_PRODUCT_WORDS = {
+  ANY: 'कोई भी', ARZO: 'अर्ज़ो', ARZOL: 'अर्ज़ोल', BLACK: 'काला', BLUE: 'नीला', BOLT: 'बोल्ट',
+  BOTTEL: 'बोतल', BOTTLE: 'बोतल', BOTTLES: 'बोतलें', CAN: 'कैन', CAP: 'ढक्कन', CAPS: 'ढक्कन',
+  COLOUR: 'रंग', COLOR: 'रंग', COUGAR: 'कूगर', DOTS: 'डॉट्स', EMBOSSMENT: 'एम्बॉसमेंट',
+  ENDURANCE: 'एंड्यूरेंस', FLUOROL: 'फ्लूरोल', FOR: 'के लिए', FORK: 'फोर्क', GO: 'गो',
+  GOLDEN: 'सुनहरा', GREEN: 'हरा', GREY: 'स्लेटी', GRAY: 'स्लेटी', LITRE: 'लीटर', LTR: 'लीटर',
+  MAROON: 'मैरून', MASARCO: 'मसार्को', MECHANIC: 'मैकेनिक', MECHNAIC: 'मैकेनिक', ML: 'मि.ली.',
+  MM: 'मि.मी.', MYTVS: 'माय टीवीएस', NECK: 'नेक', OIL: 'तेल', PEACOCK: 'मोरपंखी', POWER: 'पावर',
+  RED: 'लाल', SHALIMAR: 'शालीमार', SILVER: 'सिल्वर', SKYBLUE: 'आसमानी', STRIP: 'स्ट्रिप',
+  TOPLAND: 'टॉपलैंड', TYPE: 'टाइप', VARRO: 'वैरो', VARROC: 'वैरोक', VIEW: 'व्यू', WAD: 'वैड',
+  WITH: 'के साथ', WITHOUT: 'के बिना', WHITE: 'सफ़ेद', YELLOW: 'पीला',
+};
+function productWordsToHindi(s) {
+  return s.replace(/[A-Za-z]+/g, function (w, at, all) {
+    if (/\d/.test(all.charAt(at + w.length))) return w;              // code: PMCON0248, M1
+    var key = w.toUpperCase();
+    if (w !== key && key !== 'MYTVS' && key !== 'ML') return w;     // ordinary English word
+    var hi = I18N_HI_PRODUCT_WORDS[key];
+    return hi === undefined ? w : hi;
+  });
+}
+
+function toHindi(text, keepData) {
   var core = text.trim();
   if (!core || !/[A-Za-z]/.test(core)) return text;
+  var out = toHindiUi(core);
+  if (!keepData) out = productWordsToHindi(out);
+  return out === core ? text : text.replace(core, out);
+}
+
+function toHindiUi(core) {
   var out = I18N_HI[core];
   var sym = core.match(/^([^A-Za-z0-9]+)(.+)$/);    // "◷ Late", "– no invoice": status symbol + word
   if (out === undefined && sym && I18N_HI[sym[2]] !== undefined) out = sym[1] + I18N_HI[sym[2]];
@@ -3476,11 +3510,11 @@ function toHindi(text) {
     }
   }
   if (out === undefined) {
-    if (!/[a-z]/.test(core)) return text;   // upper-case: sheet data (names, codes, colours)
+    if (!/[a-z]/.test(core)) return core;   // upper-case: sheet data, handled by productWordsToHindi
     out = core;
     I18N_HI_PHRASES.forEach(function (p) { out = out.replace(p[0], p[1]); });
   }
-  return out === core ? text : text.replace(core, out);
+  return out;
 }
 
 function i18nSkip(el) { return !el || el.closest('script,style,.lang-toggle'); }
@@ -3490,7 +3524,8 @@ function translatePage() {
   while ((n = walker.nextNode())) {
     if (n.__hi !== undefined && n.nodeValue === n.__hi) continue;   // already done
     if (i18nSkip(n.parentElement)) continue;
-    var hi = toHindi(n.nodeValue);
+    // The search suggestions stay in English: they highlight the letters being typed.
+    var hi = toHindi(n.nodeValue, !!n.parentElement.closest('#filterList'));
     if (hi === n.nodeValue) continue;
     n.__en = n.nodeValue; n.__hi = hi; n.nodeValue = hi;
   }
