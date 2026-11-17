@@ -1343,6 +1343,65 @@
   .cbar-lbl.is-filled, .cbar-lbl { background: none; border-color: transparent; color: var(--dim); padding: 0; }
   @media (max-width: 620px) { .grand.kpi small .delta-of { display: none; } }
 
+  /* ================= NO-SCROLL FILTERS (2026-11-17) =================
+     Filter lines wrap onto further rows instead of scrolling sideways; groups wrap inside too.
+     Rows sit 42px apart on touch screens (30px chip + 12px gap) and each chip's tap area is
+     the full pitch, so neighbouring rows never steal a tap. */
+  .tb-scroll, .fline { flex-wrap: wrap; overflow: visible; row-gap: 6px; }
+  .tb-scroll > *, .fline > * { flex: 0 1 auto; }
+  .fgroup { flex-wrap: wrap; row-gap: 6px; max-width: 100%; }
+  .fline .chip, .toolbar .chip, .toolbar .jump-today { min-height: 28px; padding: 2px 9px; font-size: var(--fs-xs); }
+  .tb-sort { min-height: 28px; }
+  /* Colour blocks: the colour itself, bright, with a ring and tick when picked. */
+  .chip-color { padding: 2px !important; min-width: 0; border-radius: 7px; }
+  .cblock {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 22px; border-radius: 5px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.28);
+    font-style: normal; font-size: 13px; font-weight: 900; line-height: 1;
+  }
+  /* Beat the machine key's 10px dot rule (.legend .chip i), which also matched these blocks. */
+  .legend .chip-color .cblock, .chip-color .cblock { width: 26px; height: 22px; border-radius: 5px; }
+  @media (max-width: 620px) { .legend .chip-color .cblock, .chip-color .cblock { width: 24px; } }
+  .chip-color.on { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary); background: var(--panel); }
+  .chip-color.on .cblock::after { content: "✓"; }
+  .cblock-cell { width: 34px; height: 16px; vertical-align: middle; }
+  @media (pointer: coarse) {
+    /* 30px chip + 14px gap = 44px pitch; the tap area (border box 30 = padding box 28 + 16)
+       fills exactly that pitch, so rows neither leave dead gaps nor overlap. */
+    .tb-scroll, .fline { row-gap: 14px; padding-top: 7px; padding-bottom: 7px; }
+    .fgroup { row-gap: 14px; }
+    .fline .chip, .toolbar .chip, .toolbar .jump-today, .tb-sort { min-height: 30px; }
+    .toolbar .chip::after, .fline .chip::after, .toolbar .jump-today::after, .tb-sort::after {
+      height: calc(100% + 16px);
+    }
+    .cblock { width: 30px; height: 24px; }
+  }
+
+  /* Months and Today only steer the desktop day grid; tablets and phones show bars instead. */
+  @media (max-width: 1000px) { #monthFold, #jumpToday { display: none; } }
+  @media (max-width: 620px) {
+    .legend .mchip { min-width: 0; padding: 2px 7px; gap: 4px; }
+    .chip-color { padding: 1px !important; }
+    .cblock { width: 24px; height: 22px; }
+    .fline .chip { padding: 2px 8px; }
+    .tb-sort select { max-width: 132px; }
+    .fg-label { font-size: 9px; letter-spacing: .03em; }
+  }
+
+  /* Figures strips (Open totals, Completed and Summary KPIs): one slim row everywhere. */
+  .grand.kpi { display: flex; flex-wrap: nowrap; }
+  .grand.kpi div { flex: 1 1 0; min-width: 0; padding: 3px 10px; }
+  .grand.kpi span { font-size: 9px; letter-spacing: .04em; }
+  .grand.kpi b { font-size: var(--fs-md); }
+  @media (max-width: 620px) {
+    .grand.kpi, .grand.kpi:has(> div:nth-child(5)), .grand.kpi.open-totals { display: flex; }
+    .grand.kpi div { padding: 3px 5px; border-bottom: 0; }
+    .grand.kpi span { font-size: 8.5px; line-height: 1.1; letter-spacing: 0; }
+    .grand.kpi b { font-size: var(--fs-xs); letter-spacing: -.02em; }
+    .grand.kpi small { display: none; }
+    .kpi-note { display: none; }
+  }
+
   /* 360px phones: five-digit quantities in adjacent card cells ran into each other. */
   @media (max-width: 380px) {
     .metric-row b, .card-sub b { font-size: var(--fs-sm); letter-spacing: -.02em; }
@@ -1470,7 +1529,7 @@ function openFilterPanel(rows) {
     chipGroup(OPEN_F, 'type', 'Type', pick(function (r) { return productType(r.code); })) +
     chipGroup(OPEN_F, 'color', 'Colour', pick(function (r) { return r.color; }), colourSwatch) +
     chipGroup(OPEN_F, 'shape', 'Shape', pick(function (r) { return masterOf(r.code).shape; })) +
-    chipGroup(OPEN_F, 'size', 'Pack size', pick(function (r) { return masterOf(r.code).size; })));
+    chipGroup(OPEN_F, 'size', 'Pack size (L)', pick(function (r) { return masterOf(r.code).size; }), sizeChipText));
 }
 function zeroCls(v) { return Number(v) === 0 ? ' is-zero' : ''; }
 // Board totals as one slim strip under the toolbar (was a tall block after the table).
@@ -1610,7 +1669,9 @@ function colorFor(machine) { return PALETTE[machine] || 'var(--mx)'; }
    an honest "no colour assigned" beats a confident wrong one. */
 var PRODUCT_COLORS = {
   BLACK: '#1c1c1e', GREY: '#9195a1', SILVER: '#c7ccd6',
-  GREEN: '#2f8f4e', MAROON: '#7d2233', GOLDEN: '#c8952a'
+  GREEN: '#2f8f4e', MAROON: '#7d2233', GOLDEN: '#c8952a',
+  // Added 2026-11-17 so every colour on the sheet has a block (these four were plain text).
+  BLUE: '#2563eb', RED: '#dc2626', WHITE: '#ffffff', YELLOW: '#facc15'
 };
 function productHex(name) {
   return PRODUCT_COLORS[String(name == null ? '' : name).trim().toUpperCase()] || '';
@@ -2183,7 +2244,7 @@ function renderView() {
     // Colour as text, since the card's left edge bar is unlabelled hue on its own. Dropped in
     // Color view, where the group header already names it and the two extra metrics need room.
     cols.push({ label: 'Color',
-      cell: function (r) { return '<b>' + (String(r.color || '').trim() ? esc(r.color) : '—') + '</b>'; } });
+      cell: function (r) { return '<b>' + (String(r.color || '').trim() ? colourBlockHtml(r.color) : '—') + '</b>'; } });
   }
   // Fixed track count, not auto-fit: auto-fit re-flows to whatever fits, so the card and the
   // subtotal could resolve to different columns-per-row and stop lining up.
@@ -2402,15 +2463,36 @@ function toggleSel(sel, v) {
   sel = sel || [];
   return sel.indexOf(v) === -1 ? sel.concat([v]) : sel.filter(function (x) { return x !== v; });
 }
-/* Always-open filters, two lines per tab: line 1 is the toolbar, line 2 is a filter line of
-   labelled chip groups ("TYPE Cap Bottle │ COLOUR ● BLACK ● BLUE …"). Each line scrolls
-   sideways when it is wider than the screen, so the block never grows past two lines. */
+/* Always-open filters: line 1 is the toolbar, then a filter line of labelled chip groups
+   ("TYPE Cap Bottle │ COLOUR ■■■■ …"). Lines WRAP onto another row rather than scrolling
+   sideways (user's choice, 2026-11-17), so every option is visible at once; chips are small
+   and colours are blocks, which keeps the extra rows few. */
 function chipGroup(state, key, label, values, text) {
   if (!values.length) return '';
   return '<span class="fgroup" role="group" aria-label="' + esc(label) + '"><span class="fg-label">' + esc(label) + '</span>' +
     values.map(function (v) {
+      if (text === colourSwatch && productHex(v)) return colourChip(state, key, v);
       return chip('data-chip-key="' + key + '" data-chip-val="' + esc(v) + '"', text ? text(v) : esc(v), isOnChip(state, key, v));
     }).join('') + '</span>';
+}
+// A colour filter is the colour itself: a bright block, its name in the tooltip and for screen
+// readers. Picked = blue ring and a tick.
+function colourChip(state, key, v) {
+  var hex = productHex(v);
+  return chip('data-chip-key="' + key + '" data-chip-val="' + esc(v) + '" title="' + esc(v) + '" aria-label="' + esc(v) + '"',
+    '<i class="cblock" style="background:' + hex + ';color:' + inkOn(hex) + '" aria-hidden="true"></i>',
+    isOnChip(state, key, v), 'chip-color');
+}
+// "1.2 LTR" → "1.2" (the group label says litres); anything else, e.g. CAPS, as typed.
+function sizeChipText(v) {
+  var m = /^\s*([\d.]+)\s*LTR?S?\s*$/i.exec(v);
+  return m ? esc(m[1]) : esc(v);
+}
+// Colour as a block in a table/card cell (name kept for tooltips and screen readers).
+function colourBlockHtml(c) {
+  var hex = productHex(c);
+  if (!hex) return esc(c || '—');
+  return '<i class="cblock cblock-cell" style="background:' + hex + '" title="' + esc(c) + '" aria-hidden="true"></i><span class="sr-only">' + esc(c) + '</span>';
 }
 function filterLine(inner) { return inner ? '<div class="fline">' + inner + '</div>' : ''; }
 // A small inline dropdown in the same pill style as the sort menu.
@@ -2835,7 +2917,7 @@ function productFilterBar(all) {
     filterLine((any ? chip('id="pmReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '') +
       chipGroup(PM_FILTER, 'orders', 'Orders', ['open', 'done', 'none'], function (v) { return esc(ORDERS[v]); }) +
       chipGroup(PM_FILTER, 'machine', 'Machine', opt('machine')) +
-      chipGroup(PM_FILTER, 'size', 'Pack size', opt('size'))) +
+      chipGroup(PM_FILTER, 'size', 'Pack size (L)', opt('size'), sizeChipText)) +
     filterLine(chipGroup(PM_FILTER, 'shape', 'Shape', opt('shape')) +
       chipGroup(PM_FILTER, 'color', 'Colour', opt('color'), colourSwatch)) +
     '</div>';
@@ -3975,7 +4057,7 @@ var I18N_HI = {
   'Product': 'प्रोडक्ट', 'Shape': 'आकार', 'Pack size': 'पैक साइज़', 'Weight (g)': 'वज़न (ग्राम)',
   'Masterbatch': 'मास्टरबैच', 'Output / hr': 'उत्पादन / घंटा', 'Output / day': 'उत्पादन / दिन',
   'Open qty': 'चालू मात्रा', 'Clear filter': 'फ़िल्टर हटाएँ', 'Clear products': 'प्रोडक्ट हटाएँ',
-  'Type': 'प्रकार', 'Months': 'महीने', 'Clear filters': 'फ़िल्टर हटाएँ', 'ⓘ How lines are judged': 'ⓘ लाइनें कैसे आँकी जाती हैं',
+  'Type': 'प्रकार', 'Months': 'महीने', 'Pack size (L)': 'पैक साइज़ (लीटर)', 'Clear filters': 'फ़िल्टर हटाएँ', 'ⓘ How lines are judged': 'ⓘ लाइनें कैसे आँकी जाती हैं',
   'No open jobs match the filters.': 'इन फ़िल्टर से कोई चालू काम नहीं।',
   'Switch language: English / Hindi': 'भाषा बदलें: English / हिंदी',
   'Select one or more products': 'एक या अधिक प्रोडक्ट चुनें',
