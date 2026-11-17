@@ -167,7 +167,25 @@
   .pm-table tr[data-goto]:active { background: #e3eafc; }
   .pm-table tr[data-goto]:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
   .pm-table tr:not([data-goto]) td.name { color: var(--dim); }
-  .pm-filters { padding: var(--sp-2) var(--sp-1) 0; }
+  .pm-filters { display: flex; flex-direction: column; gap: 6px; padding: var(--sp-2) var(--sp-1) 0; }
+  .pm-row { display: flex; align-items: center; gap: var(--sp-2); }
+  .pm-label {
+    flex: 0 0 84px; font-family: var(--sans); font-size: var(--fs-xs); font-weight: 700; color: var(--dim);
+  }
+  .pm-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+  .pm-sw { width: 12px; height: 12px; border-radius: 50%; display: inline-block; box-shadow: inset 0 0 0 1px rgba(0,0,0,.25); }
+  .list-head .chip { margin-left: auto; }
+  /* Details folded: keep Code (1), Product (2) and Open qty (11); hide Shape … Output / day. */
+  .pm-table.is-compact th:nth-child(n+3):nth-child(-n+10),
+  .pm-table.is-compact td:nth-child(n+3):nth-child(-n+10) { display: none; }
+  @media (max-width: 620px) {
+    /* Phone: one swipeable line per field, so the filters stay a few rows tall. */
+    .pm-row { align-items: center; }
+    .pm-label { flex-basis: 70px; }
+    .pm-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+    .pm-chips::-webkit-scrollbar { display: none; }
+    .pm-chips .chip { min-height: 40px; }
+  }
   @media (prefers-reduced-motion: reduce) { .pm-table tr[data-goto] { transition: none; } }
   .list-table .mono { font-family: var(--mono); }
   .list-table .faint { color: var(--faint); }
@@ -2391,20 +2409,34 @@ function suppliedCodes() {
 function orderState(code, open, supplied) {
   return open[code] > 0 ? 'open' : supplied[code] ? 'done' : 'none';
 }
+/* Filters are tap-to-select chips, one row per field: tap to pick a value, tap it again (or
+   another) to change. One value per field; fields combine. Rows wrap on a wide screen and
+   scroll sideways on a phone, so the list stays near the top. */
+function pmChipRow(key, label, values, text) {
+  return '<div class="pm-row"><span class="pm-label">' + esc(label) + '</span><div class="pm-chips">' +
+    values.map(function (v) {
+      return chip('data-chip-key="' + key + '" data-chip-val="' + esc(v) + '"', text ? text(v) : esc(v), PM_FILTER[key] === v);
+    }).join('') + '</div></div>';
+}
 function productFilterBar(all) {
   var any = Object.keys(PM_FILTER).some(function (k) { return PM_FILTER[k]; });
   var opt = function (k) { return uniqueSorted(all.map(function (p) { return p[k]; }).map(String)); };
-  return '<div class="sum-bar pm-filters">' +
-    sumSelect('shape', 'Shape', opt('shape'), 'All shapes', PM_FILTER, 'data-pm') +
-    sumSelect('size', 'Pack size', opt('size'), 'All sizes', PM_FILTER, 'data-pm') +
-    sumSelect('color', 'Colour', opt('color'), 'All colours', PM_FILTER, 'data-pm') +
-    sumSelect('machine', 'Machine', opt('machine'), 'All machines', PM_FILTER, 'data-pm') +
-    sumSelect('orders', 'Orders', [{ value: 'open', text: 'With open orders' },
-      { value: 'done', text: 'Supplied, none open' }, { value: 'none', text: 'Never ordered' }],
-      'All products', PM_FILTER, 'data-pm') +
-    (any ? chip('id="pmReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '') +
+  var ORDERS = { open: 'With open orders', done: 'Supplied, none open', none: 'Never ordered' };
+  var swatch = function (c) {
+    var hex = productHex(c);
+    return (hex ? '<i class="pm-sw" style="background:' + hex + '" aria-hidden="true"></i>' : '') + esc(c);
+  };
+  return '<div class="pm-filters">' +
+    pmChipRow('orders', 'Orders', ['open', 'done', 'none'], function (v) { return esc(ORDERS[v]); }) +
+    pmChipRow('shape', 'Shape', opt('shape')) +
+    pmChipRow('size', 'Pack size', opt('size')) +
+    pmChipRow('color', 'Colour', opt('color'), swatch) +
+    pmChipRow('machine', 'Machine', opt('machine')) +
+    (any ? '<div class="pm-row">' + chip('id="pmReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') + '</div>' : '') +
     '</div>';
 }
+// Shape → Output / day are folded away by default; only Code, Product and Open qty show.
+var PM_DETAILS = false;
 function passesProductFilter(p, open, supplied) {
   return ['shape', 'size', 'color', 'machine'].every(function (k) {
     return !PM_FILTER[k] || String(p[k]) === PM_FILTER[k];
@@ -2414,6 +2446,8 @@ function bindProductFilters(mainEl) {
   bindChips(mainEl, PM_FILTER, 'data-pm');
   var rs = document.getElementById('pmReset');
   if (rs) rs.addEventListener('click', function () { PM_FILTER = Object.assign({}, PM_FILTER_DEFAULT); render(); });
+  var dt = document.getElementById('pmDetails');
+  if (dt) dt.addEventListener('click', function () { PM_DETAILS = !PM_DETAILS; render(); });
 }
 
 function renderProductMaster() {
@@ -2437,8 +2471,9 @@ function renderProductMaster() {
   var withOpen = list.filter(function (p) { return open[p.code] > 0; }).length;
   var html = bar + '<div class="list-head"><b>' + fmtNum(list.length) + '</b><span>products</span>' +
     '<b>' + fmtNum(withOpen) + '</b><span>with open orders</span>' +
-    '<span>From the Masters sheet · tap a product to see its POs</span></div>';
-  html += '<div class="done-scroll"><table class="list-table pm-table"><thead><tr>' +
+    '<span>From the Masters sheet · tap a product to see its POs</span>' +
+    chip('id="pmDetails" aria-controls="pmTable"', PM_DETAILS ? '▾ Hide details' : '▸ Show details', PM_DETAILS) + '</div>';
+  html += '<div class="done-scroll"><table id="pmTable" class="list-table pm-table' + (PM_DETAILS ? '' : ' is-compact') + '"><thead><tr>' +
     '<th scope="col" class="txt">Code</th><th scope="col" class="txt">Product</th>' +
     '<th scope="col" class="txt">Shape</th><th scope="col" class="txt">Pack size</th>' +
     '<th scope="col">Weight (g)</th><th scope="col" class="txt">Colour</th>' +
@@ -3527,7 +3562,7 @@ var I18N_HI = {
   'Open qty': 'चालू मात्रा', 'Clear filter': 'फ़िल्टर हटाएँ', 'Clear products': 'प्रोडक्ट हटाएँ',
   'Switch language: English / Hindi': 'भाषा बदलें: English / हिंदी',
   'Select one or more products': 'एक या अधिक प्रोडक्ट चुनें',
-  'Clear': 'हटाएँ', 'Orders': 'ऑर्डर', 'All products': 'सभी प्रोडक्ट', 'All shapes': 'सभी आकार',
+  'Clear': 'हटाएँ', 'Show details': 'पूरी जानकारी दिखाएँ', 'Hide details': 'जानकारी छिपाएँ', 'Orders': 'ऑर्डर', 'All products': 'सभी प्रोडक्ट', 'All shapes': 'सभी आकार',
   'All sizes': 'सभी साइज़', 'All machines': 'सभी मशीनें', 'With open orders': 'चालू ऑर्डर वाले',
   'Supplied, none open': 'सप्लाई हुए, कोई चालू नहीं', 'Never ordered': 'कभी ऑर्डर नहीं',
 };
