@@ -2427,8 +2427,8 @@ function judgedLines() {
 /* Filters for By Invoice / By PO / By Product. The date range applies to the delivered date
    (in By Invoice, each invoice's own date) or to the PO date. Dates are 'yyyy-MM-dd', so
    plain string comparison orders them correctly. */
-var LIST_DEFAULT = { status: [], brand: [], type: [], color: [], machine: [], dateBy: 'delivered', from: '', to: '', preset: '', _panel: '' };
-var LIST_MORE = ['brand', 'type', 'color', 'machine'];
+var LIST_DEFAULT = { status: [], brand: [], type: [], color: [], machine: [], size: [], shape: [], dateBy: 'delivered', from: '', to: '', preset: '', _panel: '' };
+var LIST_MORE = ['brand', 'type', 'color', 'machine', 'size', 'shape'];
 var LIST = Object.assign({}, LIST_DEFAULT);
 
 function inRange(day) {
@@ -2443,6 +2443,7 @@ function passesList(l) {
   if (!inSel(LIST.type, productType(l.code))) return false;
   if (!inSel(LIST.color, l.color)) return false;
   if (!inSel(LIST.machine, l.usualMachine)) return false;
+  if (!inSel(LIST.size, masterOf(l.code).size) || !inSel(LIST.shape, masterOf(l.code).shape)) return false;
   if (LIST.dateBy === 'po') return inRange(l.poDate);
   // By Invoice judges the range per invoice (see completedGroups); a line stays if any of
   // its invoices falls in it.
@@ -2544,6 +2545,8 @@ function attrFilterLine(state, items, extra) {
     chipGroup(state, 'machine', 'Machine', pick(function (x) { return x.usualMachine; })) +
     chipGroup(state, 'brand', 'Brand', pick(function (x) { return x.brand; })) +
     chipGroup(state, 'color', 'Colour', pick(function (x) { return x.color; }), colourSwatch) +
+    // Pack size from Masters by code. Shape is left out here: on these tabs it repeats Brand.
+    chipGroup(state, 'size', 'Pack size (L)', pick(function (x) { return masterOf(x.code).size; }), sizeChipText) +
     (extra || ''));
 }
 
@@ -3010,7 +3013,7 @@ function renderProductMaster() {
    alike, so the figures on screen always describe the same slice.
    --------------------------------------------------------------------------- */
 var MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-var SUM_DEFAULT = { year: 0, month: -1, po: '', brand: [], type: [], color: [], machine: [], status: [], sort: 'qty', _panel: '' };
+var SUM_DEFAULT = { year: 0, month: -1, po: '', brand: [], type: [], color: [], machine: [], size: [], shape: [], status: [], sort: 'qty', _panel: '' };
 var SUM = Object.assign({}, SUM_DEFAULT);
 var SUM_SORTS = { qty: 'Quantity', value: 'Value', invoices: 'Invoices', otif: 'OTIF %', code: 'Code' };
 var SUM_STATUSES = ['OTIF', 'Late', 'Short', 'Late + Short', 'Open line'];
@@ -3037,6 +3040,7 @@ function passesSum(x, status, invNos) {
   if (!inSel(SUM.type, productType(x.code))) return false;
   if (!inSel(SUM.color, x.color)) return false;
   if (!inSel(SUM.machine, x.usualMachine)) return false;
+  if (!inSel(SUM.size, masterOf(x.code).size) || !inSel(SUM.shape, masterOf(x.code).shape)) return false;
   if (!inSel(SUM.status, status)) return false;
   if (!passesPicked(x.code)) return false;
   if (!FILTER) return true;
