@@ -178,6 +178,20 @@
   /* Details folded: keep Code (1), Product (2) and Open qty (11); hide Shape … Output / day. */
   .pm-table.is-compact th:nth-child(n+3):nth-child(-n+10),
   .pm-table.is-compact td:nth-child(n+3):nth-child(-n+10) { display: none; }
+  /* With three columns a full-width table parks Open qty at the far edge, a long way from the
+     name it belongs to. Shrink to the content so the figure sits beside the product. */
+  .pm-table.is-compact { width: auto; min-width: 0; }
+  .pm-table.is-compact td.name { max-width: 460px; }
+  .pm-table .qty-cell { font-family: var(--mono); }
+  .pm-table .qty-cell b { font-size: var(--fs-base); }
+  @media (max-width: 620px) {
+    /* Phone card: Open qty goes top-right beside the code, large, where the eye lands first. */
+    .pm-table td.qty-cell {
+      order: -2; margin-left: auto; text-align: right; font-size: var(--fs-2xs); line-height: 1.2;
+    }
+    .pm-table td.qty-cell::before { display: block; }
+    .pm-table td.qty-cell b { font-size: var(--fs-lg); color: var(--primary); }
+  }
   @media (max-width: 620px) {
     /* Phone: one swipeable line per field, so the filters stay a few rows tall. */
     .pm-row { align-items: center; }
@@ -2497,7 +2511,7 @@ function renderProductMaster() {
       '<td class="txt" data-l="Colour">' + esc(p.color) + '</td>' +
       '<td data-l="Machine">' + (p.machine === '' ? '—' : esc(p.machine)) + '</td><td data-l="Masterbatch">' + mbTxt + '</td>' +
       '<td data-l="Output / hr">' + (p.perHour === '' ? '—' : fmtNum(p.perHour)) + '</td><td data-l="Output / day">' + (p.perDay === '' ? '—' : fmtNum(p.perDay)) + '</td>' +
-      '<td data-l="Open qty">' + openCell + '</td></tr>';
+      '<td class="qty-cell" data-l="Open qty">' + openCell + '</td></tr>';
   });
   mainEl.innerHTML = html + '</tbody></table></div>';
   bindProductFilters(mainEl);
