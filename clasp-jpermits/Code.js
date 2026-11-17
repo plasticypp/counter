@@ -1041,24 +1041,30 @@ function getDashboardData_(ss) {
   // only ONE of the two are still shown: that is a half-finished assignment the planner
   // should see rather than lose.
   var blankDD = function (v) { return v === '' || v === null || v === undefined || String(v).trim() === ''; };
-  var out = rowsDD.filter(function (r) {
-    if (!r[idxDD.code]) return false;
-    return !(blankDD(r[idxDD.machine]) && blankDD(r[idxDD.priority]));
-  })
-    .map(function (r) {
-      var startV = r[idxDD.start], endV = r[idxDD.end];
-      return {
-        machine: r[idxDD.machine], priority: r[idxDD.priority], po: r[idxDD.po],
-        code: r[idxDD.code], name: nameByCodeDD[r[idxDD.code]] || r[idxDD.code],
-        color: r[idxDD.color] || '(no color)',
-        orderQty: Number(r[idxDD.orderQty]) || 0, supplied: Number(r[idxDD.supplied]) || 0,
-        readyStock: Number(r[idxDD.readyStock]) || 0,
-        balance: Number(r[idxDD.balance]) || 0, days: r[idxDD.days] || '',
-        rmReq: Number(r[idxDD.rmReq]) || 0, mb: Number(r[idxDD.mb]) || 0,
-        start: startV instanceof Date ? startV.toISOString() : null,
-        end: endV instanceof Date ? endV.toISOString() : null,
-      };
-    });
+  var unplannedDD = function (r) { return blankDD(r[idxDD.machine]) && blankDD(r[idxDD.priority]); };
+  var toRowDD = function (r) {
+    var startV = r[idxDD.start], endV = r[idxDD.end];
+    return {
+      machine: r[idxDD.machine], priority: r[idxDD.priority], po: r[idxDD.po],
+      code: r[idxDD.code], name: nameByCodeDD[r[idxDD.code]] || r[idxDD.code],
+      color: r[idxDD.color] || '(no color)',
+      orderQty: Number(r[idxDD.orderQty]) || 0, supplied: Number(r[idxDD.supplied]) || 0,
+      readyStock: Number(r[idxDD.readyStock]) || 0,
+      balance: Number(r[idxDD.balance]) || 0, days: r[idxDD.days] || '',
+      rmReq: Number(r[idxDD.rmReq]) || 0, mb: Number(r[idxDD.mb]) || 0,
+      start: startV instanceof Date ? startV.toISOString() : null,
+      end: endV instanceof Date ? endV.toISOString() : null,
+    };
+  };
+  var withCodeDD = rowsDD.filter(function (r) { return !!r[idxDD.code]; });
+  var out = withCodeDD.filter(function (r) { return !unplannedDD(r); }).map(toRowDD);
+  // Not started AND not planned: no Machine, no Priority, nothing supplied, something to make.
+  // Sent apart from `rows` so the board can list them in their own group and older readers of
+  // `rows` (the GAS-hosted Dashboard, the scheduler) are unaffected. A line off the plan that
+  // HAS been supplied is in `completed` instead, so every line with a balance is on one view.
+  var unplannedOut = withCodeDD.filter(function (r) {
+    return unplannedDD(r) && !(Number(r[idxDD.supplied]) > 0) && Number(r[idxDD.balance]) > 0;
+  }).map(toRowDD);
 
   // gridStart anchors the dashboard's day columns to the SHEET's own Gantt grid, so both
   // surfaces show the same calendar days; without it the client falls back to IST-today and
@@ -1087,6 +1093,7 @@ function getDashboardData_(ss) {
   }
   return {
     rows: out,
+    unplanned: unplannedOut,
     gridStart: gridStartDD ? gridStartDD.toISOString() : null,
     completed: getCompletedData_(ss, headersDD, rowsDD, nameByCodeDD),
   };

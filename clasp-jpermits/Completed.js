@@ -1,10 +1,12 @@
 /**
  * Completed lines for the dashboard's Completed view, with the facts OTD/OTIF need.
  *
- * A line is COMPLETED when it has a Code, neither Machine nor Priority, and something has been
- * supplied against it. That includes lines that still carry a positive Balance: the planner
- * un-prioritises a line when it is closed, so the missing priority, not the Balance, is the
- * signal (decided 2026-10-15). A line with nothing supplied is a PO waiting to be planned.
+ * The view lists EVERY line with something supplied against it (decided 2026-11-17).
+ * A line is DONE when it also has neither Machine nor Priority. That includes lines that still
+ * carry a positive Balance: the planner un-prioritises a line when it is closed, so the missing
+ * priority, not the Balance, is the signal (decided 2026-10-15). A supplied line still on the
+ * plan is sent with onPlan: true and is not judged for OTD/OTIF. A line with nothing supplied
+ * is a PO waiting to be planned and is not listed here.
  *
  * Only facts are sent; the browser computes OTD/OTIF so every view agrees on one rule.
  *   due       = PO Date + Settings "OTD Lead Time (days)"           (default 20)
@@ -62,10 +64,18 @@ function getCompletedData_(ss, headers, rows, nameByCode) {
     });
   });
 
+  // Every line with anything supplied, whether or not it is still on the plan, so every
+  // dispatch is captured (decided 2026-11-17). A line still carrying a Machine or Priority is
+  // marked onPlan: the browser shows it as "On plan" and leaves it out of OTD/OTIF, which
+  // judge only finished lines.
   var lines = [];
   rows.forEach(function (r, i) {
-    if (!r[col.code] || !isDone(r)) return;
-    lines.push(completedLine_(r, i, col, nameByCode, invoicesOf(r), usualMachine));
+    if (!r[col.code]) return;
+    var invoices = invoicesOf(r);
+    if (!(Number(r[col.supplied]) > 0 || invoices.length > 0)) return;
+    var line = completedLine_(r, i, col, nameByCode, invoices, usualMachine);
+    line.onPlan = !isDone(r);
+    lines.push(line);
   });
 
   return {

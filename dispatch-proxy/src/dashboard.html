@@ -133,26 +133,64 @@
   .mode.active { background: var(--primary); color: #fff; }
 
   .filter-wrap { margin-left: auto; position: relative; min-width: 170px; flex: 1 1 240px; max-width: 340px; }
-  .filter-wrap input {
-    width: 100%; padding: 9px 12px 9px 32px; border: 1px solid var(--line); border-radius: 6px;
-    background: var(--panel); color: var(--ink); font-family: var(--sans); font-size: var(--fs-sm);
+  /* The box, not the input, carries the border: picked-product tags sit inside it ahead of the
+     text and wrap onto further lines. Icon and clear button are pinned to the FIRST line. */
+  .search-box {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+    padding: 3px 40px 3px 32px; min-height: 38px; cursor: text;
+    border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
   }
-  .filter-wrap input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(30,64,175,.14); }
+  .search-box:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(30,64,175,.14); }
+  .pick-tags { display: contents; }
+  /* With tags the box widens rather than stacking one tag per line in the header. */
+  .filter-wrap.has-tags { flex-basis: 460px; max-width: 600px; }
+  .ptag {
+    display: inline-flex; align-items: center; gap: 2px; padding: 2px 2px 2px 8px; border-radius: 999px;
+    background: #e6ebfa; color: var(--primary); font-family: var(--mono); font-size: var(--fs-xs); font-weight: 700;
+    white-space: nowrap;
+  }
+  .ptag-x {
+    border: 0; background: none; color: inherit; cursor: pointer; font-size: var(--fs-xs);
+    width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+  }
+  .ptag-x:hover { background: rgba(30,64,175,.14); }
+  .ptag-x:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+  .filter-wrap input {
+    flex: 1 1 90px; min-width: 90px; padding: 6px 4px; border: 0; outline: none;
+    background: transparent; color: var(--ink); font-family: var(--sans); font-size: var(--fs-sm);
+  }
   .filter-wrap input::placeholder { color: var(--dim); }
   .filter-wrap::before {
-    content: '⌕'; position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
-    color: var(--dim); font-size: var(--fs-md); pointer-events: none;
+    content: '⌕'; position: absolute; left: 11px; top: 19px; transform: translateY(-50%);
+    color: var(--dim); font-size: var(--fs-md); pointer-events: none; z-index: 1;
   }
   /* Was a 14x14px <span> with a click handler: unreachable by keyboard and far under the
      44px touch minimum. Now a real button with a 44px hit area. */
   .filter-wrap .clear-x {
-    position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
+    position: absolute; right: 2px; top: 19px; transform: translateY(-50%);
     color: var(--dim); cursor: pointer; font-size: var(--fs-base); display: none;
     width: 44px; height: 44px; align-items: center; justify-content: center;
     background: none; border: none; border-radius: 6px; padding: 0;
   }
   .filter-wrap .clear-x:hover { color: var(--ink); }
   .filter-wrap.has-value .clear-x { display: flex; }
+  .filter-list {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 60;
+    margin: 0; padding: 4px 0; list-style: none; max-height: 340px; overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(22,24,29,.16); min-width: min(460px, calc(100vw - 32px));
+  }
+  .filter-list li {
+    display: flex; align-items: center; gap: var(--sp-2); padding: 8px 12px; cursor: pointer;
+    font-family: var(--sans); font-size: var(--fs-sm); color: var(--ink); min-height: 40px;
+  }
+  .filter-list li.is-active, .filter-list li[data-i]:hover { background: var(--panel-alt); }
+  .filter-list .fl-name { flex: 1 1 auto; min-width: 0; line-height: 1.3; }
+  .filter-list .fl-name mark { background: none; color: var(--primary); font-weight: 700; }
+  .filter-list .fl-n { flex: 0 0 auto; color: var(--dim); font-size: var(--fs-xs); }
+  .filter-list .fl-empty { color: var(--dim); cursor: default; font-size: var(--fs-xs); }
+  .filter-list .fl-tick { flex: 0 0 14px; color: var(--primary); font-weight: 800; }
+  .filter-list li.is-picked .fl-name { font-weight: 600; }
 
   /* Freshness stamp. This slot used to hold a wall clock ticking seconds on a schedule whose
      granularity is days — precision about the wrong thing. It now reports the age of the data,
@@ -612,7 +650,9 @@
     .sum-field select { max-width: none; width: 100%; min-height: 44px; font-size: var(--fs-base); }
     .mode { flex: 1 1 50%; min-height: 44px; font-size: var(--fs-base); }
     .filter-wrap { order: 1; margin-left: 0; max-width: none; width: 100%; }
-    .filter-wrap input { padding: 11px 12px 11px 34px; font-size: var(--fs-base); }
+    .search-box { min-height: 44px; padding-left: 34px; }
+    .filter-wrap::before, .filter-wrap .clear-x { top: 22px; }
+    .filter-wrap input { padding: 8px 4px; font-size: var(--fs-base); }
     main { padding: var(--sp-2); }
     /* On a phone the totals are the figure no persona actually came for, so they get two
        compact columns at the end of the scroll rather than a share of the first screen. */
@@ -649,6 +689,25 @@
   .late-bad { color: var(--today); }
   .invs { font-size: var(--fs-xs); color: var(--dim); text-align: left; white-space: normal; max-width: 200px; }
   .group-row .st { margin-left: var(--sp-3); vertical-align: middle; }
+
+  /* ---------------- group sort + fold ---------------- */
+  .group-bar {
+    display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-1);
+  }
+  .group-bar .chip { min-height: 36px; }
+  /* A folded group keeps its header and subtotal; only its lines go. */
+  .is-folded { display: none !important; }
+  .table-scroll .gh-pin { position: sticky; left: var(--sp-3); display: inline-block; }
+  [data-gh] { cursor: pointer; }
+  .gtoggle {
+    font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0;
+    cursor: pointer; text-align: left; max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;
+  }
+  .gtoggle::before { content: '▾'; display: inline-block; width: 1.1em; color: var(--dim); }
+  .gtoggle[aria-expanded="false"]::before { content: '▸'; }
+  .gtoggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 3px; }
   .kpi b.st-good, .kpi b.st-warn, .kpi b.st-bad { background: none; border: none; padding: 0; }
   .kpi b.st-good { color: var(--ok); }
   .kpi b.st-warn { color: #8a4b06; }
@@ -916,8 +975,15 @@
   </div>
   <div class="filter-wrap">
     <label class="sr-only" for="filterInput">Filter by code, product name or PO</label>
-    <input type="text" id="filterInput" placeholder="filter code, name or PO…">
-    <button type="button" class="clear-x" id="filterClear" aria-label="Clear filter">✕</button>
+    <!-- Picked products show as tags ahead of the text; the box grows a line when they wrap. -->
+    <div class="search-box" id="searchBox">
+      <span class="pick-tags" id="pickTags"></span>
+      <input type="text" id="filterInput" placeholder="filter code, name or PO…" autocomplete="off"
+             role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="filterList">
+    </div>
+    <button type="button" class="clear-x" id="filterClear" aria-label="Clear search and picked products">✕</button>
+    <!-- Products matching what is typed; each pick toggles it as a tag. -->
+    <ul id="filterList" class="filter-list" role="listbox" aria-label="Matching products" aria-multiselectable="true" hidden></ul>
   </div>
   <!-- One download control for the Completed tabs: exports exactly what the current tab shows,
        filters included, as Excel or PDF. -->
@@ -953,6 +1019,7 @@
 <script>
 var PALETTE = {1:'var(--m1)',2:'var(--m2)',3:'var(--m3)',4:'var(--m4)',5:'var(--m5)',6:'var(--m6)',7:'var(--m7)'};
 var ROWS = [];
+var UNPLANNED = [];     // not started, not planned: no Machine/Priority, nothing supplied
 var GRID_START = null;
 var VIEW = 'po';
 var MODE = 'open';                                  // 'open' schedule | 'done' completed lines
@@ -964,6 +1031,92 @@ var MACHINES_SEEN = [];
 var MACHINE_SEL = {};   // Open board: machines ticked in the key, e.g. { '5': true }
 function hasMachineSel() { return Object.keys(MACHINE_SEL).length > 0; }
 function machineSelText() { return Object.keys(MACHINE_SEL).sort(function (a, b) { return a - b; }).join(', '); }
+
+/* ---------------------------------------------------------------------------
+   Group sorting and folding, per tab. The first option of each list is the default.
+   Both are remembered on this device only (localStorage), so a shared wall tablet and a
+   phone can each keep their own layout. Storage can be missing or blocked: every access is
+   guarded and the board works the same without it, just forgetting on reload.
+   --------------------------------------------------------------------------- */
+var GROUP_SORTS = {
+  po: [['new', 'PO no. · newest first'], ['old', 'PO no. · oldest first'], ['bal', 'Most still to supply'], ['start', 'Earliest start']],
+  product: [['code', 'Code'], ['bal', 'Most still to supply'], ['start', 'Earliest start']],
+  dpo: [['new', 'PO no. · newest first'], ['old', 'PO no. · oldest first'], ['last', 'Last delivery · newest'], ['left', 'Most still to supply']],
+  dinvoice: [['new', 'Invoice date · newest'], ['old', 'Invoice date · oldest']],
+  dproduct: [['code', 'Code'], ['supplied', 'Most supplied'], ['left', 'Most still to supply']],
+};
+var PREFS_KEY = 'dispatch.groups.v1';
+var PREFS = (function () {
+  try {
+    var p = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
+    return { sort: p.sort || {}, collapsed: p.collapsed || {} };
+  } catch (e) { return { sort: {}, collapsed: {} }; }
+})();
+function savePrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(PREFS)); } catch (e) { /* not stored */ } }
+function groupSort() {
+  var opts = GROUP_SORTS[VIEW];
+  if (!opts) return '';
+  var s = PREFS.sort[VIEW];
+  return opts.some(function (o) { return o[0] === s; }) ? s : opts[0][0];
+}
+function isFolded(key) { return !!(PREFS.collapsed[VIEW] && PREFS.collapsed[VIEW][key]); }
+function setFolded(key, on) {
+  var m = PREFS.collapsed[VIEW] || (PREFS.collapsed[VIEW] = {});
+  if (on) m[key] = 1; else delete m[key];
+}
+function cmpNat(a, b) { return String(a).localeCompare(String(b), 'en', { numeric: true }); }
+
+// Group keys of the tab on screen, by position: headers carry the index, not the key, so a PO
+// or invoice number never has to be escaped into an attribute selector.
+var GROUP_KEYS = [];
+function foldCls(key) { return isFolded(key) ? ' is-folded' : ''; }
+function groupToggle(i, label) {
+  return '<button type="button" class="gtoggle" aria-expanded="' + !isFolded(GROUP_KEYS[i]) + '">' + esc(label) + '</button>';
+}
+function groupBarHtml() {
+  var opts = GROUP_SORTS[VIEW];
+  var anyOpen = GROUP_KEYS.some(function (k) { return !isFolded(k); });
+  var sel = '';
+  if (opts) {
+    var cur = groupSort();
+    sel = '<label class="sum-field group-sort"><span>Sort</span><select id="groupSort">' +
+      opts.map(function (o) {
+        return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
+      }).join('') + '</select></label>';
+  }
+  return '<div class="group-bar">' + sel +
+    '<button type="button" class="chip" id="foldAll">' + (anyOpen ? '▸ Collapse all' : '▾ Expand all') + '</button></div>';
+}
+function refreshFoldAll(mainEl) {
+  var b = mainEl.querySelector('#foldAll');
+  if (!b) return;
+  b.textContent = GROUP_KEYS.some(function (k) { return !isFolded(k); }) ? '▸ Collapse all' : '▾ Expand all';
+}
+// Folding is done in place, not by re-rendering: a re-render resets the scroll position, and
+// the reader is usually halfway down the list when they fold the group they just finished.
+function bindGroupControls(mainEl) {
+  mainEl.querySelectorAll('[data-gh]').forEach(function (h) {
+    h.addEventListener('click', function () {
+      var i = h.dataset.gh, key = GROUP_KEYS[i];
+      var fold = !isFolded(key);
+      setFolded(key, fold);
+      savePrefs();
+      mainEl.querySelectorAll('[data-gm="' + i + '"]').forEach(function (el) { el.classList.toggle('is-folded', fold); });
+      mainEl.querySelectorAll('[data-gh="' + i + '"] .gtoggle').forEach(function (b) { b.setAttribute('aria-expanded', String(!fold)); });
+      refreshFoldAll(mainEl);
+    });
+  });
+  var fa = mainEl.querySelector('#foldAll');
+  if (fa) fa.addEventListener('click', function () {
+    var fold = GROUP_KEYS.some(function (k) { return !isFolded(k); });
+    PREFS.collapsed[VIEW] = {};
+    if (fold) GROUP_KEYS.forEach(function (k) { setFolded(k, true); });
+    savePrefs();
+    render();
+  });
+  var gs = mainEl.querySelector('#groupSort');
+  if (gs) gs.addEventListener('change', function () { PREFS.sort[VIEW] = gs.value; savePrefs(); render(); });
+}
 
 var LAST_OK = null;      // Date of the last successful fetch — the freshness stamp's source.
 var LAST_ERROR = '';     // Why the last attempt failed, so the message can name the cause.
@@ -1093,6 +1246,7 @@ function applyFilter(rows, skipMachine) {
     var b = Number(r.balance);
     return !isFinite(b) || b > 0;
   });
+  if (PICKED.length) rows = rows.filter(function (r) { return isPicked(r.code); });
   if (FILTER) {
     var q = FILTER.toLowerCase();
     // PO is searchable too — By PO is the default view, yet filtering by a PO number used to
@@ -1241,7 +1395,10 @@ function compactBar(r) {
 
 // The Open board's groups, in display order. Shared with the download so the file is grouped
 // and ordered exactly like the screen.
-function openGroups(rows) {
+// `unplanned` (not started, not planned) is always one group at the very bottom, whatever the
+// tab or sort: it has no machine, no priority and no dates to sort or group it by.
+var UNPLANNED_KEY = '~unplanned';
+function openGroups(rows, unplanned) {
   var g = groupKeyFns()[VIEW];
   var groups = {};
   var order = [];
@@ -1250,29 +1407,66 @@ function openGroups(rows) {
     if (!groups[k]) { groups[k] = { label: g.label(r), rows: [] }; order.push(k); }
     groups[k].rows.push(r);
   });
-  if (VIEW === 'machine') order.sort(function (a, b) { return Number(a) - Number(b); });
-  // numeric:true so PO-10 sorts after PO-9 rather than before it.
-  if (VIEW === 'color' || VIEW === 'po') {
-    order.sort(function (a, b) { return String(a).localeCompare(String(b), 'en', { numeric: true }); });
+  sortOpenOrder(order, groups);
+  order.forEach(function (k) { groups[k].rows.sort(openRowCmp); });
+  if (unplanned && unplanned.length) {
+    groups[UNPLANNED_KEY] = { label: 'Not started · not planned', rows: unplanned.slice().sort(function (a, b) {
+      return cmpNat(b.po, a.po) || cmpNat(a.code, b.code);
+    }) };
+    order.push(UNPLANNED_KEY);
   }
-  order.forEach(function (k) { groups[k].rows.sort(function (a, b) { return (a.priority || 999) - (b.priority || 999); }); });
   return { groups: groups, order: order };
+}
+
+// Rows inside a group. By PO lists its products by code; By Product lists its POs newest
+// first. Machine and Colour keep the planner's Priority order, which is the run sequence.
+function openRowCmp(a, b) {
+  if (VIEW === 'po') return cmpNat(a.code, b.code);
+  if (VIEW === 'product') return cmpNat(b.po, a.po);
+  return (a.priority || 999) - (b.priority || 999);
+}
+
+function earliestStart(rows) {
+  return rows.reduce(function (m, r) { return r.start && (!m || r.start < m) ? r.start : m; }, '');
+}
+
+// numeric:true (cmpNat) so PO-10 sorts after PO-9 rather than before it.
+function sortOpenOrder(order, groups) {
+  if (VIEW === 'machine') { order.sort(function (a, b) { return Number(a) - Number(b); }); return; }
+  if (VIEW === 'color') { order.sort(cmpNat); return; }
+  var s = groupSort();
+  var bal = function (k) { return sumRows(groups[k].rows).balance; };
+  var start = function (k) { return earliestStart(groups[k].rows) || '9999'; };
+  order.sort(function (a, b) {
+    if (s === 'bal') return bal(b) - bal(a) || cmpNat(a, b);
+    if (s === 'start') return start(a) < start(b) ? -1 : start(a) > start(b) ? 1 : cmpNat(a, b);
+    if (s === 'old' || s === 'code') return cmpNat(a, b);
+    return cmpNat(b, a);   // 'new'
+  });
 }
 
 function render() {
   if (MODE === 'done') { renderCompleted(); return; }
   var g = groupKeyFns()[VIEW];
   var filteredRows = applyFilter(ROWS);
+  var unplannedRows = applyFilter(UNPLANNED);
   var showRmMb = VIEW === 'color';
 
   computeDateCols(filteredRows);
   MACHINES_SEEN = Array.from(new Set(applyFilter(ROWS, true).map(function (r) { return r.machine; }))).sort(function (a, b) { return a - b; });
 
-  var grouped = openGroups(filteredRows);
+  var grouped = openGroups(filteredRows, unplannedRows);
   var groups = grouped.groups;
   var order = grouped.order;
+  GROUP_KEYS = order.slice();
+  // Header line for a group: count, and what is still to make, so a folded group still says
+  // whether it matters.
+  var groupSub = function (grp) {
+    var n = grp.rows.length;
+    return n + ' item' + (n === 1 ? '' : 's') + ' · ' + fmtNum(sumRows(grp.rows).balance) + ' left';
+  };
 
-  var grand = sumRows(filteredRows);
+  var grand = sumRows(filteredRows.concat(unplannedRows));
 
   if (!order.length) {
     // An empty schedule and a filter that matched nothing are different facts. Saying
@@ -1281,7 +1475,10 @@ function render() {
     // Three different facts, three different messages. "No jobs scheduled" when the sheet is
     // actually full of completed rows would send the reader looking for missing data.
     var emptyMsg;
-    if (FILTER) {
+    if (PICKED.length) {
+      emptyMsg = '<div class="empty">No open lines for ' + esc(PICKED.join(', ')) + (hasMachineSel() ? ' on machine ' + esc(machineSelText()) : '') + '.'
+        + ' <button type="button" class="linkish" id="emptyClear">Clear products</button></div>';
+    } else if (FILTER) {
       emptyMsg = '<div class="empty">No jobs match “' + esc(FILTER) + '”.'
         + ' <button type="button" class="linkish" id="emptyClear">Clear filter</button></div>';
     } else if (hasMachineSel()) {
@@ -1302,7 +1499,7 @@ function render() {
     return;
   }
 
-  var html = '';
+  var html = groupBarHtml();
 
   // ---- legend ----
   html += '<div class="legend">';
@@ -1330,14 +1527,17 @@ function render() {
     + '<th scope="col">Supplied</th><th scope="col">Ready</th><th scope="col">Balance</th>'
     + extraTh + '<th scope="col">Days</th>' + dateHeader +
     '</tr></thead><tbody>';
-  order.forEach(function (k) {
+  order.forEach(function (k, gi) {
     var grp = groups[k];
     var sub = sumRows(grp.rows);
-    html += '<tr class="group-row"><td colspan="' + totalCols + '"><span>' + esc(grp.label) + '</span>' +
-      '<span class="sub">' + grp.rows.length + ' item' + (grp.rows.length === 1 ? '' : 's') + '</span></td></tr>';
+    var gm = ' data-gm="' + gi + '"', fc = foldCls(k);
+    // .gh-pin holds the header to the left edge: the board opens scrolled sideways to today,
+    // which otherwise leaves the PO name and its fold button off-screen.
+    html += '<tr class="group-row" data-gh="' + gi + '"><td colspan="' + totalCols + '"><div class="gh-pin"><span>' + groupToggle(gi, grp.label) + '</span>' +
+      '<span class="sub">' + groupSub(grp) + '</span></div></td></tr>';
     grp.rows.forEach(function (r) {
       var extraTd = showRmMb ? '<td class="num">' + fmtNum(r.rmReq) + '</td><td class="num">' + fmtNum(r.mb) + '</td>' : '';
-      html += '<tr><td class="data-col">' + codeChipHtml(r.code, r.color, 'code-chip') + '</td>' +
+      html += '<tr' + gm + (fc ? ' class="' + fc.trim() + '"' : '') + '><td class="data-col">' + codeChipHtml(r.code, r.color, 'code-chip') + '</td>' +
         '<td class="data-col">' + esc(r.name) + '</td>' +
         '<td class="num">' + fmtNum(r.orderQty) + '</td><td class="num">' + fmtNum(r.supplied) + '</td>' +
         '<td class="num">' + fmtNum(r.readyStock) + '</td>' +
@@ -1361,13 +1561,13 @@ function render() {
   html += '<div class="tcard-head">' +
     '<div>Item</div><div>Qty</div><div>Supplied</div><div>Ready</div>' +
     '<div>Balance</div><div>Days</div><div>Timeline</div></div>';
-  order.forEach(function (k) {
+  order.forEach(function (k, gi) {
     var grp = groups[k];
     var sub = sumRows(grp.rows);
-    html += '<div class="tcard-group"><span>' + esc(grp.label) + '</span><span class="sub">' + grp.rows.length + ' item' + (grp.rows.length === 1 ? '' : 's') + '</span></div>';
+    html += '<div class="tcard-group" data-gh="' + gi + '"><span>' + groupToggle(gi, grp.label) + '</span><span class="sub">' + groupSub(grp) + '</span></div>';
     grp.rows.forEach(function (r) {
       var tHex = productHex(r.color);
-      html += '<div class="tcard"' + (tHex ? ' style="--pc:' + tHex + '"' : '') + '>' +
+      html += '<div class="tcard' + foldCls(k) + '" data-gm="' + gi + '"' + (tHex ? ' style="--pc:' + tHex + '"' : '') + '>' +
         '<span class="code">' + codeChipHtml(r.code, r.color, 'code-chip') +
         '<small>' + esc(r.name) + '</small></span>' +
         '<span class="val"><span class="lbl">Qty</span>' + fmtNum(r.orderQty) + '</span>' +
@@ -1442,14 +1642,15 @@ function render() {
   // labels, and a per-group copy of the labels stacked one pinned row per group.
   html += '<div class="cards">';
   html += '<div class="metric-head"' + colStyle + '>' + headCells + '</div>';
-  order.forEach(function (k) {
+  order.forEach(function (k, gi) {
     var grp = groups[k];
     var sub = sumRows(grp.rows);
-    html += '<div class="card-group-head"><span>' + esc(grp.label) + '</span><span class="sub">' + grp.rows.length + ' item' + (grp.rows.length === 1 ? '' : 's') + '</span></div>';
+    html += '<div class="card-group-head" data-gh="' + gi + '"><span>' + groupToggle(gi, grp.label) + '</span><span class="sub">' + groupSub(grp) + '</span></div>';
     grp.rows.forEach(function (r) {
       // Machine chip: the mobile card's bar is a thin colour strip, far too small to identify
-      // a machine by hue on a phone. The number states it.
-      var mch = '<span class="mch" style="background:' + colorFor(r.machine) + '">M' + esc(r.machine) + '</span>';
+      // a machine by hue on a phone. The number states it. An unplanned line has no machine.
+      var mch = String(r.machine || '').trim()
+        ? '<span class="mch" style="background:' + colorFor(r.machine) + '">M' + esc(r.machine) + '</span>' : '';
       // In Product view the group header already names the product, so the per-item line shows the
       // PO number instead of repeating the product name.
       // Product view shows the PO in the chip instead of the code, but the chip is still tinted:
@@ -1460,7 +1661,7 @@ function render() {
         : codeChipHtml(r.code, r.color, 'code') + mch
           + '<span class="name">' + esc(r.name) + '</span>';
       var mHex = productHex(r.color);
-      html += '<div class="card"' + (mHex ? ' style="--pc:' + mHex + '"' : '') + '>' +
+      html += '<div class="card' + foldCls(k) + '" data-gm="' + gi + '"' + (mHex ? ' style="--pc:' + mHex + '"' : '') + '>' +
         '<div class="card-top">' + topLine + '</div>' +
         '<div class="metric-row"' + colStyle + '>' +
         cols.map(function (c) { return '<div>' + c.cell(r) + '</div>'; }).join('') +
@@ -1495,6 +1696,7 @@ function render() {
   mainEl.setAttribute('aria-busy', 'false');
 
   measureFrozenOffset();
+  bindGroupControls(mainEl);
   var jt = document.getElementById('jumpToday');
   if (jt) jt.addEventListener('click', scrollToToday);
   mainEl.querySelectorAll('[data-machine]').forEach(function (b) {
@@ -1547,6 +1749,7 @@ function pct(n, d) { return d ? Math.round((n / d) * 100) + '%' : '—'; }
 
 // One badge per line instead of three Yes/No columns.
 function statusBadge(l) {
+  if (l.onPlan) return '<span class="st st-na">○ On plan</span>';
   if (l.status !== 'ok') return '<span class="st st-na">– ' + esc(l.status) + '</span>';
   if (l.otd && l.inFull) return '<span class="st st-good">✓ OTIF</span>';
   if (!l.otd && !l.inFull) return '<span class="st st-bad">✗ Late + Short</span>';
@@ -1588,6 +1791,13 @@ function judgedLines() {
   return COMPLETED.lines.map(function (l) {
     var j = judgeLine(l, lead, tol);
     Object.keys(l).forEach(function (k) { j[k] = l[k]; });
+    // Still on the plan: not finished, so not judged. Any status but 'ok' keeps it out of every
+    // OTD/OTIF count. Delivered still shows its latest invoice, for sorting and date filters.
+    if (j.onPlan) {
+      j.status = 'On plan';
+      j.late = j.otd = j.otif = null;
+      j.delivered = l.invoices.reduce(function (a, i) { return i.date && i.date > a ? i.date : a; }, '') || null;
+    }
     return j;
   });
 }
@@ -1622,14 +1832,14 @@ function passesList(l) {
    presets are chips; the rarer filters (brand, type, colour, PO, sort, a custom date range)
    sit in a panel opened by a chip, with a count badge so nothing is filtered invisibly.
    --------------------------------------------------------------------------- */
-var STATUS_ICONS = { 'OTIF': '✓', 'Late': '◷', 'Short': '◐', 'Late + Short': '✗', 'Open line': '○' };
+var STATUS_ICONS = { 'OTIF': '✓', 'Late': '◷', 'Short': '◐', 'Late + Short': '✗', 'On plan': '○', 'Open line': '○' };
 
 function chip(attrs, label, on, extraCls) {
   return '<button type="button" class="chip' + (on ? ' on' : '') + (extraCls ? ' ' + extraCls : '') + '" ' + attrs +
     ' aria-pressed="' + !!on + '">' + label + '</button>';
 }
 
-var STATUS_ORDER = ['OTIF', 'Late', 'Short', 'Late + Short', 'Open line'];
+var STATUS_ORDER = ['OTIF', 'Late', 'Short', 'Late + Short', 'On plan', 'Open line'];
 function statusChips(state, statuses) {
   var rank = function (st) { var i = STATUS_ORDER.indexOf(st); return i === -1 ? 99 : i; };
   return statuses.slice().sort(function (a, b) { return rank(a) - rank(b); }).map(function (st) {
@@ -1739,7 +1949,7 @@ function bindListControls(mainEl) {
 }
 
 function completedLines() {
-  var lines = judgedLines().filter(passesList);
+  var lines = judgedLines().filter(function (l) { return passesPicked(l.code) && passesList(l); });
   if (!FILTER) return lines;
   var q = FILTER.toLowerCase();
   return lines.filter(function (l) {
@@ -1778,12 +1988,38 @@ function completedGroups(lines) {
       add(l.code, l.code + ' — ' + l.name, l.code, { line: l });
     }
   });
-  if (VIEW === 'dproduct') order.sort(function (a, b) { return String(a).localeCompare(String(b), 'en', { numeric: true }); });
-  else order.sort(function (a, b) { return groups[a].sortKey < groups[b].sortKey ? 1 : groups[a].sortKey > groups[b].sortKey ? -1 : 0; });
-  order.forEach(function (k) {
-    groups[k].rows.sort(function (a, b) { return String(b.line.poDate || '').localeCompare(String(a.line.poDate || '')); });
-  });
+  sortCompletedOrder(order, groups);
+  order.forEach(function (k) { groups[k].rows.sort(completedRowCmp); });
   return { groups: groups, order: order };
+}
+
+function leftToSupply(rows) {
+  return rows.reduce(function (a, r) { return a + Math.max(0, r.line.orderQty - r.line.supplied); }, 0);
+}
+function suppliedOf(rows) { return rows.reduce(function (a, r) { return a + r.line.supplied; }, 0); }
+
+// sortKey is the group's latest date (invoice date, or last delivery for By PO).
+function sortCompletedOrder(order, groups) {
+  var s = groupSort();
+  var byDateDesc = function (a, b) { return groups[a].sortKey < groups[b].sortKey ? 1 : groups[a].sortKey > groups[b].sortKey ? -1 : 0; };
+  order.sort(function (a, b) {
+    if (a === '~none' || b === '~none') return a === '~none' ? 1 : -1;   // "No invoice" stays last
+    // Several invoices share a day; the invoice number breaks the tie so they run in sequence.
+    if (VIEW === 'dinvoice') return s === 'old' ? (byDateDesc(b, a) || cmpNat(a, b)) : (byDateDesc(a, b) || cmpNat(b, a));
+    if (s === 'last') return byDateDesc(a, b) || cmpNat(b, a);
+    if (s === 'left') return leftToSupply(groups[b].rows) - leftToSupply(groups[a].rows) || cmpNat(a, b);
+    if (s === 'supplied') return suppliedOf(groups[b].rows) - suppliedOf(groups[a].rows) || cmpNat(a, b);
+    if (s === 'old' || s === 'code') return cmpNat(a, b);
+    return cmpNat(b, a);   // 'new'
+  });
+}
+
+// By PO lists its products by code; By Invoice its lines by PO (newest) then code; By Product
+// its POs newest first.
+function completedRowCmp(a, b) {
+  if (VIEW === 'dpo') return cmpNat(a.line.code, b.line.code);
+  if (VIEW === 'dinvoice') return cmpNat(b.line.po, a.line.po) || cmpNat(a.line.code, b.line.code);
+  return String(b.line.poDate || '').localeCompare(String(a.line.poDate || '')) || cmpNat(b.line.po, a.line.po);
 }
 
 function completedColumns() {
@@ -1828,9 +2064,14 @@ function groupSummary(rows) {
     return pctChip('On time', onTime, judged.length) + '<span class="sub">' +
       rows.length + ' line' + (rows.length === 1 ? '' : 's') + ' · ' + fmtNum(qty) + ' pcs</span>';
   }
-  var s = scoreLines(rows.map(function (r) { return r.line; }));
-  return pctChip('OTIF', s.otif, s.judged) + '<span class="sub">OTD ' + pct(s.otd, s.judged) +
-    ' · ' + s.lines + ' line' + (s.lines === 1 ? '' : 's') + '</span>';
+  var ls = rows.map(function (r) { return r.line; });
+  var s = scoreLines(ls);
+  var onPlan = ls.filter(function (l) { return l.onPlan; }).length;
+  var ordered = ls.reduce(function (a, l) { return a + l.orderQty; }, 0);
+  var chipHtml = (!s.judged && onPlan) ? '<span class="st st-na">○ On plan</span>' : pctChip('OTIF', s.otif, s.judged);
+  return chipHtml + '<span class="sub">' +
+    s.lines + ' line' + (s.lines === 1 ? '' : 's') + (onPlan ? ' · ' + onPlan + ' on plan' : '') +
+    ' · ' + fmtNum(suppliedOf(rows)) + ' / ' + fmtNum(ordered) + ' supplied · OTD ' + pct(s.otd, s.judged) + '</span>';
 }
 
 function renderCompleted() {
@@ -1843,10 +2084,13 @@ function renderCompleted() {
   if (VIEW === 'dsummary') { renderSummary(mainEl); return; }
   var lines = completedLines();
   if (!lines.length) {
-    mainEl.innerHTML = listControls() + (FILTER
-      ? '<div class="empty">No completed lines match “' + esc(FILTER) + '”.'
+    mainEl.innerHTML = listControls() + (PICKED.length
+      ? '<div class="empty">No supplied lines for ' + esc(PICKED.join(', ')) + ' match these filters.'
+        + ' <button type="button" class="linkish" id="emptyClear">Clear products</button></div>'
+      : FILTER
+      ? '<div class="empty">No supplied lines match “' + esc(FILTER) + '”.'
         + ' <button type="button" class="linkish" id="emptyClear">Clear filter</button></div>'
-      : '<div class="empty">No completed lines match these filters.</div>');
+      : '<div class="empty">No supplied lines match these filters.</div>');
     var ec = document.getElementById('emptyClear');
     if (ec) ec.addEventListener('click', clearFilter);
     bindListControls(mainEl);
@@ -1854,9 +2098,10 @@ function renderCompleted() {
   }
 
   var s = scoreLines(lines);
-  var unjudged = s.lines - s.judged;
+  var onPlanN = lines.filter(function (l) { return l.onPlan; }).length;
+  var unjudged = s.lines - s.judged - onPlanN;
   var html = listControls() + '<div class="grand kpi">' +
-    '<div><span>Completed lines</span><b>' + fmtNum(s.lines) + '</b></div>' +
+    '<div><span>Supplied lines</span><b>' + fmtNum(s.lines) + '</b></div>' +
     '<div><span>OTD</span><b class="' + pctTone(s.otd, s.judged) + '">' + pct(s.otd, s.judged) + '</b></div>' +
     '<div><span>OTIF</span><b class="' + pctTone(s.otif, s.judged) + '">' + pct(s.otif, s.judged) + '</b></div>' +
     '<div><span>In full</span><b class="' + pctTone(s.inFull, s.judged) + '">' + pct(s.inFull, s.judged) + '</b></div>' +
@@ -1864,20 +2109,24 @@ function renderCompleted() {
   html += '<p class="kpi-note">Due = PO date + <b>' + esc(COMPLETED.leadDays) + ' days</b> · ' +
     'Delivered = last invoice date · In full = supplied ≥ <b>' + esc(100 - COMPLETED.tolerancePct) + '%</b> of order qty · ' +
     'OTD/OTIF judged on <b>' + s.judged + '</b> of ' + s.lines + ' lines' +
-    (unjudged ? ' (' + unjudged + ' have no invoice, invoice date or order qty)' : '') +
+    (onPlanN ? ' · <b>' + onPlanN + '</b> still on plan, judged once taken off it' : '') +
+    (unjudged > 0 ? ' (' + unjudged + ' have no invoice, invoice date or order qty)' : '') +
     ' · change these on the sheet’s Settings tab.</p>';
 
   var cols = completedColumns();
   var g = completedGroups(lines);
+  GROUP_KEYS = g.order.slice();
+  html += groupBarHtml();
   html += '<div class="done-scroll"><table><thead><tr>' +
     cols.map(function (c) { return '<th scope="col"' + (c.cls === 'txt' || c.cls === 'invs' ? ' class="' + c.cls + '"' : '') + '>' + esc(c.th) + '</th>'; }).join('') +
     '</tr></thead><tbody>';
-  g.order.forEach(function (k) {
+  g.order.forEach(function (k, gi) {
     var grp = g.groups[k];
-    html += '<tr class="group-row"><td colspan="' + cols.length + '"><span>' + esc(grp.label) + '</span>' +
+    var fc = foldCls(k);
+    html += '<tr class="group-row" data-gh="' + gi + '"><td colspan="' + cols.length + '"><span>' + groupToggle(gi, grp.label) + '</span>' +
       groupSummary(grp.rows) + '</td></tr>';
     grp.rows.forEach(function (r) {
-      html += '<tr>' + cols.map(function (c) {
+      html += '<tr data-gm="' + gi + '"' + (fc ? ' class="' + fc.trim() + '"' : '') + '>' + cols.map(function (c) {
         return '<td' + (c.cls ? ' class="' + c.cls + '"' : '') + '>' + c.td(r) + '</td>';
       }).join('') + '</tr>';
     });
@@ -1886,6 +2135,7 @@ function renderCompleted() {
 
   mainEl.innerHTML = html;
   bindListControls(mainEl);
+  bindGroupControls(mainEl);
   var firstTh = mainEl.querySelector('.done-scroll thead th:first-child');
   if (firstTh) document.documentElement.style.setProperty('--froz-1', firstTh.getBoundingClientRect().width + 'px');
 }
@@ -1928,6 +2178,7 @@ function passesSum(x, status, invNos) {
   if (SUM.color && x.color !== SUM.color) return false;
   if (SUM.machine && String(x.usualMachine) !== SUM.machine) return false;
   if (SUM.status && status !== SUM.status) return false;
+  if (!passesPicked(x.code)) return false;
   if (!FILTER) return true;
   var q = FILTER.toLowerCase();
   return [x.code, x.name, x.po].concat(invNos).some(function (v) { return String(v).toLowerCase().indexOf(q) !== -1; });
@@ -2230,6 +2481,7 @@ var GROUP_NAMES = { dinvoice: 'Invoice', dpo: 'PO', dproduct: 'Product' };
 
 function activeFilterText() {
   var parts = [];
+  if (PICKED.length) parts.push('Products: ' + PICKED.join(', '));
   if (FILTER) parts.push('Search: ' + FILTER);
   if (MODE === 'open') {
     if (hasMachineSel()) parts.push('Machine: ' + machineSelText());
@@ -2248,9 +2500,11 @@ function activeFilterText() {
 // dates instead of 45 day columns.
 function openViewForExport() {
   var rows = applyFilter(ROWS);
-  if (!rows.length) return null;
+  var unplanned = applyFilter(UNPLANNED);
+  if (!rows.length && !unplanned.length) return null;
   var showRmMb = VIEW === 'color';
-  var g = openGroups(rows);
+  var g = openGroups(rows, unplanned);
+  rows = rows.concat(unplanned);   // the grand total below counts both
   var byPo = VIEW === 'po';   // the group column already is the PO
   var d = function (iso) { return iso ? fmtDate(new Date(iso)) : ''; };
   var nums = function (t) {
@@ -2443,27 +2697,218 @@ document.querySelectorAll('.mode').forEach(function (btn) {
 var filterInput = document.getElementById('filterInput');
 var filterWrap = document.querySelector('.filter-wrap');
 var filterClear = document.getElementById('filterClear');
+var filterList = document.getElementById('filterList');
+var pickTags = document.getElementById('pickTags');
+
+/* ---------------------------------------------------------------------------
+   Search box: free text, or picked products.
+
+   With no product picked, typing filters the view directly (code, name, PO, invoice).
+   Picking products from the dropdown adds them as tags, and the view then shows lines for
+   ANY of them; while tags are present the typed text only searches the dropdown, so typing
+   a second product's name cannot narrow the view to nothing by accident. PICKED is shared by
+   Open and Completed (it is one search box), and the other filters still apply on top.
+   --------------------------------------------------------------------------- */
+var PICKED = [];                       // product codes, in the order picked
+var SUGGEST = { items: [], active: -1 };
+var SUGGEST_MAX = 8;
+var filterTimer = null;
+
+function isPicked(code) { return PICKED.indexOf(code) !== -1; }
+function passesPicked(code) { return !PICKED.length || isPicked(code); }
+
+// The view filter follows the typed text only while nothing is picked.
+function syncFilter() {
+  FILTER = PICKED.length ? '' : filterInput.value.trim();
+  filterWrap.classList.toggle('has-value', !!(PICKED.length || filterInput.value.trim()));
+  filterWrap.classList.toggle('has-tags', PICKED.length > 0);
+  filterInput.placeholder = PICKED.length ? 'add another product…' : 'filter code, name or PO…';
+}
 
 function clearFilter() {
   filterInput.value = '';
-  FILTER = '';
-  filterWrap.classList.remove('has-value');
+  PICKED = [];
+  renderTags();
+  syncFilter();
+  hideSuggest();
   render();
   filterInput.focus();
 }
 
 // Debounced: render() rebuilds all three renderings, so an undebounced keystroke handler
 // rebuilt the entire board on every character typed.
-var filterTimer = null;
 filterInput.addEventListener('input', function () {
-  filterWrap.classList.toggle('has-value', !!filterInput.value.trim());
+  renderSuggest();
+  filterWrap.classList.toggle('has-value', !!(PICKED.length || filterInput.value.trim()));
+  if (PICKED.length) return;   // text is only searching the dropdown
   clearTimeout(filterTimer);
-  filterTimer = setTimeout(function () {
-    FILTER = filterInput.value.trim();
-    render();
-  }, 140);
+  filterTimer = setTimeout(function () { syncFilter(); render(); }, 140);
 });
 filterClear.addEventListener('click', clearFilter);
+
+// Products the dropdown can offer: the ones the current mode has lines for, so every
+// suggestion leads to rows. Names come with the lines (Masters, via the sheet).
+function productsForMode() {
+  var byCode = {};
+  var add = function (code, name, color, qty) {
+    var p = byCode[code] || (byCode[code] = { code: code, name: name || code, color: color, lines: 0, qty: 0 });
+    p.lines++; p.qty += qty;
+  };
+  if (MODE === 'done') {
+    if (COMPLETED) COMPLETED.lines.forEach(function (l) { add(l.code, l.name, l.color, l.supplied); });
+  } else {
+    ROWS.concat(UNPLANNED).forEach(function (r) {
+      if (!(Number(r.balance) > 0)) return;     // the Open board only shows lines with a balance
+      add(r.code, r.name, r.color, Number(r.balance) || 0);
+    });
+  }
+  return Object.keys(byCode).map(function (k) { return byCode[k]; });
+}
+
+// Every typed word must appear in the code or the name, so "grey arzol 3" finds
+// "ARZOL 3 LTR GREY BOTTEL". Matches at the start of the code or name rank first.
+function matchProducts(q) {
+  var words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  var starts = function (p) {
+    return (p.code.toLowerCase().indexOf(words[0]) === 0 || String(p.name).toLowerCase().indexOf(words[0]) === 0) ? 0 : 1;
+  };
+  return productsForMode().filter(function (p) {
+    var hay = (p.code + ' ' + p.name).toLowerCase();
+    return words.every(function (w) { return hay.indexOf(w) !== -1; });
+  }).sort(function (a, b) { return starts(a) - starts(b) || b.qty - a.qty || cmpNat(a.code, b.code); });
+}
+
+// Bold the typed words inside a plain string, escaping every piece.
+function markWords(text, q) {
+  text = String(text);
+  var words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  var lower = text.toLowerCase(), hit = new Array(lower.length).fill(false);
+  words.forEach(function (w) {
+    for (var i = lower.indexOf(w); i !== -1; i = lower.indexOf(w, i + 1)) {
+      for (var j = i; j < i + w.length; j++) hit[j] = true;
+    }
+  });
+  var out = '', run = '', on = false;
+  for (var c = 0; c <= lower.length; c++) {
+    if (c === lower.length || hit[c] !== on) {
+      out += on ? '<mark>' + esc(run) + '</mark>' : esc(run);
+      run = ''; on = hit[c];
+    }
+    if (c < lower.length) run += text.charAt(c);
+  }
+  return out;
+}
+
+function hideSuggest() {
+  filterList.hidden = true;
+  filterList.innerHTML = '';
+  SUGGEST = { items: [], active: -1 };
+  filterInput.setAttribute('aria-expanded', 'false');
+  filterInput.removeAttribute('aria-activedescendant');
+}
+
+function renderSuggest() {
+  var q = filterInput.value.trim();
+  if (!q) { hideSuggest(); return; }
+  var keepActive = SUGGEST.active;
+  var all = matchProducts(q);
+  SUGGEST = { items: all.slice(0, SUGGEST_MAX), active: -1 };
+  if (!all.length) {
+    filterList.innerHTML = '<li class="fl-empty" role="option" aria-disabled="true">No product matches “' + esc(q) + '”</li>';
+  } else {
+    var unit = MODE === 'done' ? 'line' : 'open line';
+    filterList.innerHTML = SUGGEST.items.map(function (p, i) {
+      var on = isPicked(p.code);
+      return '<li role="option" id="fl-' + i + '" data-i="' + i + '" aria-selected="' + on + '"' + (on ? ' class="is-picked"' : '') + '>' +
+        '<span class="fl-tick" aria-hidden="true">' + (on ? '✓' : '') + '</span>' +
+        codeChipHtml(p.code, p.color, 'code-chip') +
+        '<span class="fl-name">' + markWords(p.name, q) + '</span>' +
+        '<span class="fl-n">' + p.lines + ' ' + unit + (p.lines === 1 ? '' : 's') + '</span></li>';
+    }).join('') + (all.length > SUGGEST_MAX
+      ? '<li class="fl-empty" role="option" aria-disabled="true">+' + (all.length - SUGGEST_MAX) + ' more — keep typing</li>' : '');
+  }
+  filterList.hidden = false;
+  filterInput.setAttribute('aria-expanded', 'true');
+  if (keepActive >= 0 && keepActive < SUGGEST.items.length) setActive(keepActive);
+}
+
+function setActive(i) {
+  var n = SUGGEST.items.length;
+  if (!n) return;
+  SUGGEST.active = (i + n) % n;
+  filterList.querySelectorAll('li[data-i]').forEach(function (li) {
+    var on = Number(li.dataset.i) === SUGGEST.active;
+    li.classList.toggle('is-active', on);
+    if (on) li.scrollIntoView({ block: 'nearest' });
+  });
+  filterInput.setAttribute('aria-activedescendant', 'fl-' + SUGGEST.active);
+}
+
+// Tags carry the product's own name as a tooltip; the code alone is what fits on a phone.
+// A tag picked on one mode may have no lines on the other, so the name is looked up in both.
+function productName(code) {
+  var all = ROWS.concat(UNPLANNED).concat(COMPLETED ? COMPLETED.lines : []);
+  for (var i = 0; i < all.length; i++) if (all[i].code === code) return all[i].name;
+  return code;
+}
+function renderTags() {
+  pickTags.innerHTML = PICKED.map(function (code) {
+    return '<span class="ptag" title="' + esc(productName(code)) + '">' + esc(code) +
+      '<button type="button" class="ptag-x" data-code="' + esc(code) + '" aria-label="Remove ' + esc(code) + '">✕</button></span>';
+  }).join('');
+}
+
+// Toggle a product in or out of the picked set. The list stays open with its ticks
+// updated, so several products can be picked from one search.
+function togglePick(code) {
+  var wasEmpty = !PICKED.length;
+  if (isPicked(code)) PICKED = PICKED.filter(function (c) { return c !== code; });
+  else PICKED = PICKED.concat([code]);
+  clearTimeout(filterTimer);
+  renderTags();
+  syncFilter();
+  render();
+  if (wasEmpty && PICKED.length) { filterInput.value = ''; hideSuggest(); syncFilter(); }   // typed text was the view filter; start fresh
+  else renderSuggest();
+  filterInput.focus();
+}
+
+filterInput.addEventListener('keydown', function (e) {
+  if (e.key === 'Backspace' && !filterInput.value && PICKED.length) {
+    togglePick(PICKED[PICKED.length - 1]);
+    e.preventDefault();
+    return;
+  }
+  if (filterList.hidden) {
+    if (e.key === 'ArrowDown' && filterInput.value.trim()) { renderSuggest(); setActive(0); e.preventDefault(); }
+    return;
+  }
+  if (e.key === 'ArrowDown') { setActive(SUGGEST.active + 1); e.preventDefault(); }
+  else if (e.key === 'ArrowUp') { setActive(SUGGEST.active - 1); e.preventDefault(); }
+  else if (e.key === 'Enter') {
+    if (SUGGEST.active >= 0) { togglePick(SUGGEST.items[SUGGEST.active].code); e.preventDefault(); }
+    else hideSuggest();
+  } else if (e.key === 'Escape') { hideSuggest(); e.preventDefault(); }
+});
+// mousedown, not click: a click fires after the input's blur, which has already closed the list.
+filterList.addEventListener('mousedown', function (e) {
+  var li = e.target.closest('li[data-i]');
+  e.preventDefault();
+  if (!li) return;
+  SUGGEST.active = Number(li.dataset.i);
+  togglePick(SUGGEST.items[SUGGEST.active].code);
+});
+pickTags.addEventListener('click', function (e) {
+  var x = e.target.closest('.ptag-x');
+  if (x) togglePick(x.dataset.code);
+});
+// Clicking the empty part of the box puts the cursor in the input.
+document.getElementById('searchBox').addEventListener('mousedown', function (e) {
+  if (e.target === this) { e.preventDefault(); filterInput.focus(); }
+});
+filterInput.addEventListener('blur', function () { setTimeout(function () { if (document.activeElement !== filterInput) hideSuggest(); }, 150); });
+filterInput.addEventListener('focus', function () { if (filterInput.value.trim()) renderSuggest(); });
 
 function showLoadError(err) {
   // The raw error is logged, never printed: it leaked internal strings such as
@@ -2525,6 +2970,7 @@ function load(force) {
     .then(function (data) {
       if (data && data.error) throw new Error(data.error);
       ROWS = (data && data.rows) || [];
+      UNPLANNED = (data && data.unplanned) || [];
       GRID_START = (data && data.gridStart) ? new Date(data.gridStart) : null;
       COMPLETED = (data && data.completed) || null;
       // A served-from-fallback payload is real data, but it is NOT current: the upstream is
