@@ -190,6 +190,10 @@
   .filter-list .fl-n { flex: 0 0 auto; color: var(--dim); font-size: var(--fs-xs); }
   .filter-list .fl-empty { color: var(--dim); cursor: default; font-size: var(--fs-xs); }
   .filter-list .fl-tick { flex: 0 0 14px; color: var(--primary); font-weight: 800; }
+  .filter-list li.fl-hint {
+    min-height: 0; padding: 4px 12px 6px; cursor: default; color: var(--dim);
+    font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  }
   .filter-list li.is-picked .fl-name { font-weight: 600; }
 
   /* Freshness stamp. This slot used to hold a wall clock ticking seconds on a schedule whose
@@ -2818,7 +2822,10 @@ function renderSuggest() {
     filterList.innerHTML = '<li class="fl-empty" role="option" aria-disabled="true">No product matches “' + esc(q) + '”</li>';
   } else {
     var unit = MODE === 'done' ? 'line' : 'open line';
-    filterList.innerHTML = SUGGEST.items.map(function (p, i) {
+    var hint = PICKED.length
+      ? PICKED.length + ' picked · tap to add or remove · Esc to close'
+      : 'Select one or more products';
+    filterList.innerHTML = '<li class="fl-hint" role="presentation">' + esc(hint) + '</li>' + SUGGEST.items.map(function (p, i) {
       var on = isPicked(p.code);
       return '<li role="option" id="fl-' + i + '" data-i="' + i + '" aria-selected="' + on + '"' + (on ? ' class="is-picked"' : '') + '>' +
         '<span class="fl-tick" aria-hidden="true">' + (on ? '✓' : '') + '</span>' +
@@ -2861,16 +2868,16 @@ function renderTags() {
 
 // Toggle a product in or out of the picked set. The list stays open with its ticks
 // updated, so several products can be picked from one search.
+// The typed text and the open list are kept after EVERY pick, including the first: closing
+// the list on the first pick made it read as a single-select box.
 function togglePick(code) {
-  var wasEmpty = !PICKED.length;
   if (isPicked(code)) PICKED = PICKED.filter(function (c) { return c !== code; });
   else PICKED = PICKED.concat([code]);
   clearTimeout(filterTimer);
   renderTags();
   syncFilter();
   render();
-  if (wasEmpty && PICKED.length) { filterInput.value = ''; hideSuggest(); syncFilter(); }   // typed text was the view filter; start fresh
-  else renderSuggest();
+  renderSuggest();
   filterInput.focus();
 }
 
