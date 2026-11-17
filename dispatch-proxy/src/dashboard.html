@@ -1130,6 +1130,159 @@
     .done-scroll .group-row td > span:first-child { position: sticky; left: 0; z-index: 1; display: inline-block; padding: 0 10px 0 12px; margin-left: -12px; background: var(--panel-alt); }
     .done-scroll .subtotal-row td:first-child { background: #dbe0f2; }
   }
+  /* ================= COMPACT PASS (2026-11-17) =================
+     Measured before: the first data row started at 412px (desktop) and 614px (390px phone)
+     on Open, 736px on a phone's Summary. Header, toolbars, totals and table chrome all get
+     one row each at most, and every table sheds padding. */
+
+  /* Header: one row on desktop — Counter Entry is an icon, the stamp is just the time. */
+  header { padding: 8px var(--sp-4); gap: 10px; }
+  header .counter-link { min-height: 36px; padding: 0 10px; }
+  header .counter-link .lbl { display: none; }
+  .clock { min-height: 32px; padding: 4px 6px; }
+  .clock:not(.is-stale) .fresh-lbl { display: none; }
+  .filter-wrap { flex: 1 1 200px; }
+  .tab { padding: 6px 12px; }
+  .mode { padding: 6px 12px; min-height: 32px; }
+  .lang-toggle { min-height: 32px; }
+  .lang-toggle span { padding: 6px 9px; }
+  main { padding: 10px var(--sp-4); }
+
+  /* One toolbar row per tab: chips scroll sideways inside, collapse button pinned right. */
+  .toolbar { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; flex: 0 0 auto; min-width: 0; }
+  .tb-scroll {
+    flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px;
+    overflow-x: auto; scrollbar-width: thin; padding: 2px 0;
+  }
+  .tb-scroll > * { flex: 0 0 auto; }
+  .toolbar .chip, .toolbar .jump-today { min-height: 32px; padding: 4px 11px; font-size: var(--fs-xs); }
+  .toolbar .chip-sep { height: 22px; }
+  .tb-sort {
+    display: inline-flex; align-items: center; gap: 4px; padding: 0 4px 0 10px; min-height: 32px;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--dim);
+    font-size: var(--fs-xs); font-weight: 700;
+  }
+  .tb-sort select {
+    border: 0; background: transparent; font: inherit; color: var(--ink); padding: 4px 2px; max-width: 190px; cursor: pointer;
+  }
+  .toolbar .sum-scope .mode { min-height: 32px; padding: 4px 12px; font-size: var(--fs-xs); }
+  .toolbar .stepper .chip { padding: 4px 10px; }
+  .toolbar .stepper b { font-size: var(--fs-sm); min-width: 0; }
+  .toolbar .stepper small { font-size: var(--fs-2xs); color: var(--dim); font-weight: 600; }
+  /* Collapse / expand all: a small glowing round button at the toolbar's right end. */
+  .fold-btn {
+    flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer;
+    background: var(--primary); color: #fff; font-size: 18px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 0 3px rgba(30,64,175,.15), 0 0 14px rgba(30,64,175,.55);
+    animation: foldGlow 2.4s ease-in-out infinite;
+  }
+  .fold-btn:hover { box-shadow: 0 0 0 4px rgba(30,64,175,.22), 0 0 18px rgba(30,64,175,.7); }
+  .fold-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+  @keyframes foldGlow {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(30,64,175,.15), 0 0 10px rgba(30,64,175,.4); }
+    50% { box-shadow: 0 0 0 3px rgba(30,64,175,.22), 0 0 18px rgba(30,64,175,.7); }
+  }
+  @media (prefers-reduced-motion: reduce) { .fold-btn { animation: none; } }
+
+  /* Open: the toolbar replaces the old legend block; machine pills are small "● M3" chips. */
+  .legend { padding: 0; gap: 0; display: block; }
+  .legend .mchip i { width: 9px; height: 9px; }
+  .jump-today { margin-left: 0; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; }
+  .today-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--today); display: inline-block; }
+  .open-totals { margin: 0 0 8px; }
+  main > .grand.open-totals { margin-top: 0; }
+
+  /* Folded months in the timeline: one column per month. */
+  .dmon-btn {
+    background: none; border: 0; padding: 0; font: inherit; color: var(--primary); cursor: pointer;
+    text-decoration: underline dotted; text-underline-offset: 2px; display: block; margin: 0 auto;
+  }
+  .date-th.is-month, .date-td.is-month { width: 64px; min-width: 64px; }
+  .date-th.is-month { vertical-align: middle; }
+  .month-fill { display: flex; align-items: center; gap: 3px; padding: 0 4px; color: #fff; font-size: 10px; font-weight: 700; white-space: nowrap; }
+  .month-fill .mnum { position: static; }
+
+  /* Tables: less padding everywhere. */
+  th, td { padding: 4px 8px; }
+  th { padding-top: 6px; padding-bottom: 6px; }
+  .group-row td { padding: 6px 10px; font-size: var(--fs-md); }
+  .date-th { height: 34px; padding: 3px 0; }
+  .date-td { padding: 2px 0; }
+  .date-fill { min-height: 22px; }
+  .list-table th, .list-table td { padding: 5px 8px; }
+  .done-scroll { margin-bottom: 8px; }
+
+  /* Completed/Summary/Open figures strip, slimmer still. */
+  .grand.kpi div { padding: 6px 12px; }
+  .grand.kpi b { font-size: var(--fs-lg); }
+  .grand.kpi span { font-size: 10px; }
+  .kpi { margin: 0 0 6px; }
+  .kpi-note { margin: 0 4px 8px; }
+  /* Wider than a phone: label, figure and note on one line per cell. */
+  @media (min-width: 621px) {
+    .grand.kpi div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; padding: 5px 12px; }
+    .grand.kpi b { display: inline; }
+    .grand.kpi small { display: inline; margin: 0; }
+  }
+
+  /* Summary month strip: twelve slim chips side by side. */
+  .trend { grid-template-columns: repeat(12, minmax(100px, 1fr)); gap: 4px; margin: 0 0 8px; scrollbar-width: thin; }
+  .trend-m { white-space: nowrap; flex-wrap: nowrap !important; }
+  .trend-m {
+    position: relative; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: baseline;
+    gap: 2px 5px; padding: 5px 4px 7px; overflow: hidden;
+  }
+  .trend-m b { font-size: var(--fs-xs); }
+  .trend-m em { font-style: normal; font-weight: 700; font-family: var(--sans); }
+  .trend-m .trend-line { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--primary); opacity: .55; }
+  .trend-m.is-on .trend-line { opacity: 1; }
+
+  /* Tablet rows: the pinned column header already names every figure, so the per-row labels
+     go, and rows and group headers lose padding. */
+  .tcard { padding: 6px 12px; }
+  .tcard .val .lbl { display: none; }
+  .tcard .code { font-size: var(--fs-sm); }
+  .tcard-group { padding: 6px 12px; font-size: var(--fs-md); }
+  .tcard-sub { padding: 5px 12px; }
+  .prop-bar { height: 16px; }
+  .prop-bar .fill { border-radius: 8px; }
+  /* Phone cards: tighter rows. */
+  .card { padding: 8px 10px; }
+  .card-top { margin-bottom: 4px; }
+  .metric-row { padding: 5px 0; margin-bottom: 4px; }
+  .card-sub { padding: 7px 10px; }
+
+  /* Filter chip rows (Products look, every tab): small chips. */
+  .pm-filters { gap: 4px; padding-top: 4px; }
+  .pm-filters .chip { min-height: 28px; padding: 2px 10px; font-size: var(--fs-xs); }
+  .pm-label { flex-basis: 72px; font-size: var(--fs-2xs); }
+  .list-head { padding: 4px 4px; }
+
+  @media (max-width: 620px) {
+    /* Phone header: logo · language · time · download · counter on ONE row, then search,
+       then the four modes on one row, then the tabs. */
+    header { padding: 6px 8px; gap: 6px; }
+    .clock { order: 0; padding: 2px 4px; min-height: 32px; }
+    .lang-toggle, .counter-link, header .counter-link { min-height: 36px; }
+    .search-box { min-height: 38px; }
+    .filter-wrap::before, .filter-wrap .clear-x { top: 19px; }
+    .modes { flex-wrap: nowrap; }
+    .mode { flex: 1 1 0; min-height: 36px; padding: 4px 2px; font-size: var(--fs-xs); line-height: 1.15; }
+    .mode:nth-child(n+3) { border-top: none; }
+    .mode:nth-child(3) { border-left: 1px solid var(--primary); }
+    .tab { min-height: 36px; padding: 6px 12px; font-size: var(--fs-sm); }
+    main { padding: 6px; }
+    .toolbar .chip, .toolbar .jump-today, .tb-sort, .toolbar .sum-scope .mode { min-height: 36px; }
+    .tb-scroll { scrollbar-width: none; }
+    .tb-scroll::-webkit-scrollbar { display: none; }
+    .tb-sort select { max-width: 150px; }
+    .pm-filters .chip { min-height: 34px; }
+    .trend { grid-template-columns: repeat(12, 100px); scrollbar-width: none; }
+    .grand.kpi.open-totals { grid-template-columns: repeat(4, 1fr); }
+    .grand.kpi.open-totals:has(> div:nth-child(5)) { grid-template-columns: repeat(3, 1fr); }
+  }
+
   /* 360px phones: five-digit quantities in adjacent card cells ran into each other. */
   @media (max-width: 380px) {
     .metric-row b, .card-sub b { font-size: var(--fs-sm); letter-spacing: -.02em; }
@@ -1245,20 +1398,45 @@ function passesOpenFilter(r) {
   return inSel(OPEN_F.type, productType(r.code)) && inSel(OPEN_F.color, r.color) &&
     inSel(OPEN_F.shape, m.shape) && inSel(OPEN_F.size, m.size);
 }
-function openFilterBar(rows) {
+function openFilterChips() {
   var n = selCount(OPEN_F, OPEN_F_KEYS);
+  return panelChip(OPEN_F, n) +
+    (n ? chip('id="openReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '');
+}
+function openFilterPanel(rows) {
   var pick = function (f) { return uniqueSorted(rows.map(f)).map(String); };
-  var html = '<div class="chipbar">' + panelChip(OPEN_F, n) +
-    (n ? chip('id="openReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '') + '</div>';
-  if (OPEN_F._panel !== 'more') return html;
-  return html + '<div class="chip-panel pm-filters">' +
+  if (OPEN_F._panel !== 'more') return '';
+  return '<div class="chip-panel pm-filters">' +
     chipRow(OPEN_F, 'type', 'Type', pick(function (r) { return productType(r.code); })) +
     chipRow(OPEN_F, 'color', 'Colour', pick(function (r) { return r.color; }), colourSwatch) +
     chipRow(OPEN_F, 'shape', 'Shape', pick(function (r) { return masterOf(r.code).shape; })) +
     chipRow(OPEN_F, 'size', 'Pack size', pick(function (r) { return masterOf(r.code).size; })) +
     '</div>';
 }
+// Board totals as one slim strip under the toolbar (was a tall block after the table).
+function openTotalsHtml(grand, showRmMb) {
+  var cell = function (label, v) { return '<div><span>' + label + '</span><b>' + fmtNum(v) + '</b></div>'; };
+  return '<div class="grand kpi open-totals">' +
+    cell('Order Qty', grand.orderQty) + cell('Supplied', grand.supplied) +
+    cell('Ready Stock', grand.readyStock) + cell('Balance', grand.balance) +
+    (showRmMb ? cell('RM Req', grand.rmReq) + cell('MB', grand.mb) : '') + '</div>';
+}
 function bindOpenFilters(mainEl) {
+  var mf = document.getElementById('monthFold');
+  if (mf) mf.addEventListener('click', function () {
+    var fold = !allMonthsFolded();
+    MONTH_FOLD = {};
+    if (fold) monthKeys().forEach(function (k) { MONTH_FOLD[k] = true; });
+    render();
+  });
+  mainEl.querySelectorAll('[data-mfold]').forEach(function (b) {
+    b.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var k = b.dataset.mfold;
+      if (MONTH_FOLD[k]) delete MONTH_FOLD[k]; else MONTH_FOLD[k] = true;
+      render();
+    });
+  });
   bindChips(mainEl, OPEN_F, 'data-openf');
   var rs = document.getElementById('openReset');
   if (rs) rs.addEventListener('click', function () { OPEN_F = Object.assign({}, OPEN_F_DEFAULT); render(); });
@@ -1309,24 +1487,36 @@ function foldCls(key) { return isFolded(key) ? ' is-folded' : ''; }
 function groupToggle(i, label) {
   return '<button type="button" class="gtoggle" aria-expanded="' + !isFolded(GROUP_KEYS[i]) + '">' + esc(label) + '</button>';
 }
-function groupBarHtml() {
+/* The top row of every grouped tab is ONE toolbar: filter chips and the sort menu scroll
+   sideways inside it, and the collapse/expand-all button is pinned to its right end. */
+function sortSelectHtml() {
   var opts = GROUP_SORTS[VIEW];
+  if (!opts) return '';
+  var cur = groupSort();
+  return '<label class="tb-sort"><span class="sr-only">Sort</span><span aria-hidden="true">⇅</span><select id="groupSort" aria-label="Sort groups">' +
+    opts.map(function (o) {
+      return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
+    }).join('') + '</select></label>';
+}
+function foldBtnState() {
   var anyOpen = GROUP_KEYS.some(function (k) { return !isFolded(k); });
-  var sel = '';
-  if (opts) {
-    var cur = groupSort();
-    sel = '<label class="sum-field group-sort"><span>Sort</span><select id="groupSort">' +
-      opts.map(function (o) {
-        return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
-      }).join('') + '</select></label>';
-  }
-  return '<div class="group-bar">' + sel +
-    '<button type="button" class="chip" id="foldAll">' + (anyOpen ? '▸ Collapse all' : '▾ Expand all') + '</button></div>';
+  return anyOpen ? { icon: '⊟', label: 'Collapse all' } : { icon: '⊞', label: 'Expand all' };
+}
+function foldBtnHtml() {
+  var s = foldBtnState();
+  return '<button type="button" class="fold-btn" id="foldAll" title="' + s.label + '" aria-label="' + s.label + '">' +
+    '<span aria-hidden="true">' + s.icon + '</span></button>';
+}
+// inner = chips/menus that scroll; the fold button stays at the right edge.
+function toolbarHtml(inner, withFold) {
+  return '<div class="toolbar"><div class="tb-scroll">' + inner + '</div>' + (withFold ? foldBtnHtml() : '') + '</div>';
 }
 function refreshFoldAll(mainEl) {
   var b = mainEl.querySelector('#foldAll');
   if (!b) return;
-  b.textContent = GROUP_KEYS.some(function (k) { return !isFolded(k); }) ? '▸ Collapse all' : '▾ Expand all';
+  var s = foldBtnState();
+  b.title = s.label; b.setAttribute('aria-label', s.label);
+  b.firstChild.textContent = s.icon;
 }
 // Folding is done in place, not by re-rendering: a re-render resets the scroll position, and
 // the reader is usually halfway down the list when they fold the group they just finished.
@@ -1464,9 +1654,13 @@ function paintFreshness() {
   else if (mins < 1) label = 'Updated just now';
   else if (mins < 60) label = 'Updated ' + mins + ' min ago';
   else label = 'Updated ' + stamp + ' — may be out of date';
+  // Normal case: just the time beside the dot (the words are in the tooltip), so the stamp
+  // fits in the header row instead of taking a row of its own. Anything the reader must act
+  // on — stale, paused, server busy — still spells itself out.
   text.innerHTML = (SERVING_STALE || paused || mins >= 60)
     ? esc(label)
-    : esc(label) + ' &nbsp;<b>' + esc(stamp) + '</b>';
+    : '<span class="fresh-lbl">' + esc(label) + ' </span><b>' + esc(stamp) + '</b>';
+  box.title = label + ' — tap to refresh';
   box.classList.toggle('is-fresh', !SERVING_STALE && !paused && mins < 5);
   box.classList.toggle('is-aging', !SERVING_STALE && !paused && mins >= 5 && mins < 30);
   box.classList.toggle('is-stale', SERVING_STALE || paused || mins >= 30);
@@ -1558,42 +1752,77 @@ function computeDateCols(rows) {
 /* Day number on its own line, month printed only when it changes — the same pattern the
    mobile grid already used. Replaces rotated 10px text that could not be read at the
    distance a wall-mounted tablet is actually viewed from. */
+/* Months can be folded: a folded month is ONE column instead of ~30, holding a bar with the
+   first–last scheduled day of that month. The month label in the header is the toggle, and
+   the "Months" chip folds or opens them all. Session only (not stored). */
+var MONTH_FOLD = {};
+function monKey(d) { return d.getFullYear() + '-' + d.getMonth(); }
+// Day columns grouped for rendering: an open month gives one segment per day, a folded month
+// one segment holding all its days.
+function dateSegs() {
+  var segs = [], cur = null;
+  DATE_COLS.forEach(function (d) {
+    var k = monKey(d);
+    if (!MONTH_FOLD[k]) { segs.push({ days: [d], key: k, folded: false }); cur = null; return; }
+    if (!cur || cur.key !== k) { cur = { days: [], key: k, folded: true }; segs.push(cur); }
+    cur.days.push(d);
+  });
+  return segs;
+}
+function monthKeys() { return uniqueSorted(DATE_COLS.map(monKey)); }
+function allMonthsFolded() {
+  var ks = monthKeys();
+  return ks.length > 0 && ks.every(function (k) { return MONTH_FOLD[k]; });
+}
+function isTodayIn(days) { return days.some(function (d) { return d.getTime() === TODAY.getTime(); }); }
+
 function dateHeaderHtml() {
   var lastMon = null;
-  return DATE_COLS.map(function (d) {
-    var isToday = d.getTime() === TODAY.getTime();
+  return dateSegs().map(function (sg) {
+    var d = sg.days[0];
     var mon = fmtMon(d);
+    var today = isTodayIn(sg.days) ? ' is-today' : '';
+    if (sg.folded) {
+      lastMon = mon;
+      return '<th class="date-th is-month' + today + '" scope="col"><button type="button" class="dmon-btn" data-mfold="' +
+        sg.key + '" aria-expanded="false" title="Show the days of ' + esc(mon) + '">' + esc(mon) + ' ▸</button></th>';
+    }
     var showMon = (mon !== lastMon);
     lastMon = mon;
-    return '<th class="date-th' + (isToday ? ' is-today' : '') + '" scope="col">'
-      + '<span class="dmon">' + (showMon ? esc(mon) : '') + '</span>'
+    return '<th class="date-th' + today + '" scope="col">'
+      + (showMon ? '<button type="button" class="dmon dmon-btn" data-mfold="' + sg.key + '" aria-expanded="true" title="Fold ' +
+        esc(mon) + ' into one column">' + esc(mon) + '</button>' : '<span class="dmon"></span>')
       + fmtDay(d) + '</th>';
   }).join('');
 }
 
 function dateCellsHtml(r) {
+  var segs = dateSegs();
   if (!r.start || !r.end) {
-    return DATE_COLS.map(function () { return '<td class="date-td"></td>'; }).join('');
+    return segs.map(function (sg) { return '<td class="date-td' + (sg.folded ? ' is-month' : '') + '"></td>'; }).join('');
   }
   var s = new Date(r.start), e = new Date(r.end);
   var color = colorFor(r.machine);
   var firstActive = true;
-  return DATE_COLS.map(function (d) {
-    var isToday = d.getTime() === TODAY.getTime();
-    var active = d >= s && d < e;
-    var cls = 'date-td' + (isToday ? ' is-today-col' : '');
-    var fill = '';
-    if (active) {
-      // Machine number printed in the bar's first cell: colour alone cannot be read by the
-      // ~8% of the floor with red-green deficiency, and the legend is off-screen once the
-      // planner has scrolled. The hue stays for fast pattern-scanning; the digit is the fact.
-      var label = firstActive ? '<span class="mnum">' + esc(r.machine) + '</span>' : '';
+  return segs.map(function (sg) {
+    var cls = 'date-td' + (isTodayIn(sg.days) ? ' is-today-col' : '') + (sg.folded ? ' is-month' : '');
+    var act = sg.days.filter(function (d) { return d >= s && d < e; });
+    if (!act.length) return '<td class="' + cls + '"></td>';
+    if (sg.folded) {
+      var first = firstActive ? '<span class="mnum">' + esc(r.machine) + '</span>' : '';
       firstActive = false;
-      fill = '<span class="date-fill" style="background:' + color + '" title="'
-        + esc('M' + r.machine + ' · ' + r.code + ': ' + fmtDate(s) + '–' + fmtDate(e))
-        + '">' + label + '</span>';
+      return '<td class="' + cls + '"><span class="date-fill month-fill" style="background:' + color + '" title="' +
+        esc('M' + r.machine + ' · ' + r.code + ': ' + fmtDate(act[0]) + '–' + fmtDate(act[act.length - 1])) + '">' + first +
+        '<small>' + fmtDay(act[0]) + (act.length > 1 ? '–' + fmtDay(act[act.length - 1]) : '') + '</small></span></td>';
     }
-    return '<td class="' + cls + '">' + fill + '</td>';
+    // Machine number printed in the bar's first cell: colour alone cannot be read by the
+    // ~8% of the floor with red-green deficiency, and the legend is off-screen once the
+    // planner has scrolled. The hue stays for fast pattern-scanning; the digit is the fact.
+    var label = firstActive ? '<span class="mnum">' + esc(r.machine) + '</span>' : '';
+    firstActive = false;
+    return '<td class="' + cls + '"><span class="date-fill" style="background:' + color + '" title="'
+      + esc('M' + r.machine + ' · ' + r.code + ': ' + fmtDate(s) + '–' + fmtDate(e))
+      + '">' + label + '</span></td>';
   }).join('');
 }
 
@@ -1763,27 +1992,28 @@ function render() {
   // Chip values come from every outstanding line, not the filtered ones, so picking BLACK
   // does not make the other colours vanish.
   var pool = ROWS.concat(UNPLANNED).filter(function (r) { var b = Number(r.balance); return !isFinite(b) || b > 0; });
-  var html = openFilterBar(pool) + groupBarHtml();
-
-  // ---- legend ----
-  html += '<div class="legend">';
+  // ---- one toolbar: filters · sort · months · machine key · today, collapse pinned right.
+  // The machine key IS the machine filter (multi-select) and also maps bar colour to machine.
+  var tb = openFilterChips() + sortSelectHtml() +
+    chip('id="monthFold" title="Fold the timeline into one column per month"', '<span aria-hidden="true">▦</span> Months', allMonthsFolded()) +
+    '<span class="chip-sep" aria-hidden="true"></span>';
   MACHINES_SEEN.forEach(function (m) {
     var on = !!MACHINE_SEL[String(m)];
-    html += '<button type="button" class="chip mchip' + (on ? ' on' : '') + '" data-machine="' + esc(m) +
-      '" aria-pressed="' + on + '" aria-label="Machine ' + esc(m) + '"><i style="background:' + colorFor(m) + '"></i><span class="mword">Machine </span>' + esc(m) + '</button>';
+    tb += '<button type="button" class="chip mchip' + (on ? ' on' : '') + '" data-machine="' + esc(m) +
+      '" aria-pressed="' + on + '" aria-label="Machine ' + esc(m) + '"><i style="background:' + colorFor(m) + '"></i>M' + esc(m) + '</button>';
   });
   if (hasMachineSel()) {
-    html += '<button type="button" class="chip chip-clear" id="machineClear"><span aria-hidden="true">✕</span> All machines</button>';
+    tb += '<button type="button" class="chip chip-clear" id="machineClear"><span aria-hidden="true">✕</span> All machines</button>';
   }
-  html += '<span class="today-chip"><i></i>Today</span>';
-  html += '<button type="button" class="jump-today" id="jumpToday">Jump to today</button>';
-  html += '</div>';
+  tb += '<button type="button" class="jump-today" id="jumpToday"><i class="today-dot" aria-hidden="true"></i>Today</button>';
+  var html = '<div class="legend">' + toolbarHtml(tb, true) + '</div>' + openFilterPanel(pool) + openTotalsHtml(grand, showRmMb);
 
   // Full words, not "Sup"/"D" — the abbreviations were unglossable and inconsistent with the
   // other two renderings, which spelled the same metrics differently again.
   var extraTh = showRmMb ? '<th scope="col">RM Req</th><th scope="col">MB</th>' : '';
   var dateHeader = dateHeaderHtml();
-  var totalCols = 7 + (showRmMb ? 2 : 0) + DATE_COLS.length;
+  var segCount = dateSegs().length;
+  var totalCols = 7 + (showRmMb ? 2 : 0) + segCount;
 
   // ---- desktop: single unified table ----
   html += '<div class="table-scroll"><table><thead><tr>' +
@@ -1809,7 +2039,7 @@ function render() {
         '<td class="num">' + esc(r.days || '—') + '</td>' + dateCellsHtml(r) + '</tr>';
     });
     var extraTf = showRmMb ? '<td class="num">' + fmtNum(sub.rmReq) + '</td><td class="num">' + fmtNum(sub.mb) + '</td>' : '';
-    var dateFootCells = DATE_COLS.map(function () { return '<td class="date-td"></td>'; }).join('');
+    var dateFootCells = new Array(segCount + 1).join('<td class="date-td"></td>');
     html += '<tr class="subtotal-row"><td colspan="2">Subtotal</td>' +
       '<td class="num">' + fmtNum(sub.orderQty) + '</td><td class="num">' + fmtNum(sub.supplied) + '</td>' +
       '<td class="num">' + fmtNum(sub.readyStock) + '</td>' +
@@ -1945,17 +2175,6 @@ function render() {
       '</div>';
   });
   html += '</div>';
-
-  var grandExtra = showRmMb
-    ? '<div><span>RM Req</span><b>' + fmtNum(grand.rmReq) + '</b></div><div><span>MB</span><b>' + fmtNum(grand.mb) + '</b></div>'
-    : '';
-  html += '<div class="grand">' +
-    '<div><span>Order Qty</span><b>' + fmtNum(grand.orderQty) + '</b></div>' +
-    '<div><span>Supplied</span><b>' + fmtNum(grand.supplied) + '</b></div>' +
-    '<div><span>Ready Stock</span><b>' + fmtNum(grand.readyStock) + '</b></div>' +
-    '<div><span>Balance</span><b>' + fmtNum(grand.balance) + '</b></div>' +
-    grandExtra +
-    '</div>';
 
   var mainEl = document.getElementById('main');
   mainEl.innerHTML = html;
@@ -2176,24 +2395,24 @@ function presetRange(p) {
   return { from: '', to: '' };
 }
 
-function listControls() {
+// withGroups: the tab has groups on screen, so the sort menu and collapse button join the row.
+function listControls(withGroups) {
   var all = judgedLines();
   var more = selCount(LIST, LIST_MORE);
   var custom = LIST.preset === 'custom' && (LIST.from || LIST.to);
   var any = LIST.status.length || more || LIST.from || LIST.to;
   // Filters and Clear lead the row: on a phone the row scrolls sideways, and what is active
   // must be visible without scrolling. An active date preset also shows on the Filters chip.
-  var html = '<div class="chipbar">' +
-    panelChip(LIST, more + (LIST.from || LIST.to ? 1 : 0)) +
+  var html = toolbarHtml(panelChip(LIST, more + (LIST.from || LIST.to ? 1 : 0)) +
     (any ? chip('id="listReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '') +
+    (withGroups ? sortSelectHtml() : '') +
     statusChips(LIST, uniqueSorted(all.map(statusWord))) +
     '<span class="chip-sep" aria-hidden="true"></span>' +
     chip('data-preset="tm"', 'This month', LIST.preset === 'tm') +
     chip('data-preset="lm"', 'Last month', LIST.preset === 'lm') +
     chip('data-preset="ty"', 'This year', LIST.preset === 'ty') +
     chip('data-panel="dates"', '<span aria-hidden="true">📅</span> ' + (custom ? esc((LIST.from || '…') + ' → ' + (LIST.to || '…')) : 'Dates'),
-      LIST._panel === 'dates' || custom) +
-    '</div>';
+      LIST._panel === 'dates' || custom), withGroups);
   if (LIST._panel === 'more') {
     html += moreChipRows(LIST, all);
   } else if (LIST._panel === 'dates') {
@@ -2399,7 +2618,10 @@ function renderCompleted() {
   var s = scoreLines(lines);
   var onPlanN = lines.filter(function (l) { return l.onPlan; }).length;
   var unjudged = s.lines - s.judged - onPlanN;
-  var html = listControls() + '<div class="grand kpi">' +
+  var cols = completedColumns();
+  var g = completedGroups(lines);
+  GROUP_KEYS = g.order.slice();
+  var html = listControls(true) + '<div class="grand kpi">' +
     '<div><span>Supplied lines</span><b>' + fmtNum(s.lines) + '</b></div>' +
     '<div><span>OTD</span><b class="' + pctTone(s.otd, s.judged) + '">' + pct(s.otd, s.judged) + '</b></div>' +
     '<div><span>OTIF</span><b class="' + pctTone(s.otif, s.judged) + '">' + pct(s.otif, s.judged) + '</b></div>' +
@@ -2412,10 +2634,6 @@ function renderCompleted() {
     (unjudged > 0 ? ' (' + unjudged + ' have no invoice, invoice date or order qty)' : '') +
     ' · change these on the sheet’s Settings tab.</details>';
 
-  var cols = completedColumns();
-  var g = completedGroups(lines);
-  GROUP_KEYS = g.order.slice();
-  html += groupBarHtml();
   html += '<div class="done-scroll"><table><thead><tr>' +
     cols.map(function (c) { return '<th scope="col"' + (c.cls === 'txt' || c.cls === 'invs' ? ' class="' + c.cls + '"' : '') + '>' + esc(c.th) + '</th>'; }).join('') +
     '</tr></thead><tbody>';
@@ -2746,26 +2964,25 @@ function uniqueSorted(list) {
 }
 
 // Month | Year switch and a ‹ period › stepper, then the same chips as the line tabs.
-function summaryControls(all) {
+function summaryControls(all, soFar) {
   var isYear = SUM.month === -1;
   var label = isYear ? String(SUM.year) : MONTH_NAMES[SUM.month] + ' ' + SUM.year;
   var more = selCount(SUM, LIST_MORE) + (SUM.po ? 1 : 0) + (SUM.sort !== 'qty' ? 1 : 0);
   var any = SUM.status.length || more;
-  var html = '<div class="chipbar">' +
+  var html = toolbarHtml(
     '<div class="modes sum-scope" role="group" aria-label="Summary period">' +
       '<button type="button" class="mode' + (isYear ? '' : ' active') + '" data-scope="month" aria-pressed="' + !isYear + '">Month</button>' +
       '<button type="button" class="mode' + (isYear ? ' active' : '') + '" data-scope="year" aria-pressed="' + isYear + '">Year</button>' +
     '</div>' +
     '<div class="stepper" role="group" aria-label="Period">' +
       '<button type="button" class="chip" data-step="-1" aria-label="Previous ' + (isYear ? 'year' : 'month') + '">‹</button>' +
-      '<b>' + esc(label) + '</b>' +
+      '<b>' + esc(label) + (soFar ? ' <small title="month to date">· ' + esc(soFar) + '</small>' : '') + '</b>' +
       '<button type="button" class="chip" data-step="1" aria-label="Next ' + (isYear ? 'year' : 'month') + '">›</button>' +
     '</div>' +
     '<span class="chip-sep" aria-hidden="true"></span>' +
     panelChip(SUM, more + (SUM.status.length ? 1 : 0)) +
     (any ? chip('id="sumReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '') +
-    statusChips(SUM, SUM_STATUSES) +
-    '</div>';
+    statusChips(SUM, SUM_STATUSES), false);
   if (SUM._panel === 'more') {
     // PO stays a dropdown: there are dozens, too many for a chip row.
     html += moreChipRows(SUM, all) + '<div class="chip-panel">' +
@@ -2795,14 +3012,16 @@ function summaryKpis(t, prev, against) {
 function summaryTrend(d, year) {
   var months = MONTH_NAMES.map(function (m, i) { return periodTotals(d, year, i); });
   var max = Math.max.apply(null, months.map(function (t) { return t.qty; }).concat([1]));
+  // A slim strip of month chips side by side: name, quantity, OTIF, and a hairline bar along
+  // the bottom whose length is the month's share of the busiest month. Was 12 tall tiles.
   var html = '<div class="trend" role="group" aria-label="Months of ' + year + '">';
   months.forEach(function (t, i) {
     var on = SUM.month === i;
     html += '<button type="button" class="trend-m' + (on ? ' is-on' : '') + '" data-month="' + i + '"' +
-      (t.qty ? '' : ' disabled') + '>' +
-      '<span class="trend-bar"><i style="height:' + Math.round((t.qty / max) * 100) + '%"></i></span>' +
+      (t.qty ? '' : ' disabled') + ' aria-pressed="' + on + '">' +
       '<b>' + MONTH_NAMES[i] + '</b><span>' + (t.qty ? fmtLakh(t.qty) : '—') + '</span>' +
-      (t.lines.length ? '<span class="st ' + pctTone(t.otif, t.lines.length) + '">' + pct(t.otif, t.lines.length) + '</span>' : '<span></span>') +
+      (t.lines.length ? '<em class="' + pctTone(t.otif, t.lines.length) + '">' + pct(t.otif, t.lines.length) + '</em>' : '') +
+      '<i class="trend-line" style="width:' + Math.round((t.qty / max) * 100) + '%"></i>' +
       '</button>';
   });
   return html + '</div>';
@@ -2895,13 +3114,22 @@ function renderSummary(mainEl) {
   var title = (isYear ? 'Year ' : MONTH_NAMES[SUM.month] + ' ') + SUM.year +
     (running ? ' · month to date (1–' + nowIst.getUTCDate() + ')' : '');
 
-  mainEl.innerHTML = summaryControls(all) +
-    '<h2 class="sum-title">' + esc(title) + '</h2>' +
-    summaryKpis(t, prev, against) +
+  // The period sits in the stepper ("Nov 2026 · 1–17"); the full title stays for screen
+  // readers and the export file name. Month strip first: it is how a period is picked.
+  mainEl.innerHTML = summaryControls(all, running ? '1–' + nowIst.getUTCDate() : '') +
+    '<h2 class="sum-title sr-only">' + esc(title) + '</h2>' +
     summaryTrend(d, SUM.year) +
+    summaryKpis(t, prev, against) +
     summaryTable(t, isYear);
 
   bindChips(mainEl, SUM, 'data-sum');
+  // On a phone the month strip scrolls; bring the picked (or latest) month into view.
+  var trendBox = mainEl.querySelector('.trend');
+  var onM = mainEl.querySelector('.trend-m.is-on') || [].slice.call(mainEl.querySelectorAll('.trend-m:not([disabled])')).pop();
+  if (trendBox && onM && trendBox.scrollWidth > trendBox.clientWidth) {
+    var x = onM.getBoundingClientRect().left - trendBox.getBoundingClientRect().left + trendBox.scrollLeft;
+    trendBox.scrollLeft = Math.max(0, x - trendBox.clientWidth + onM.offsetWidth + 8);
+  }
   mainEl.querySelectorAll('[data-step]').forEach(function (b) {
     b.addEventListener('click', function () {
       var step = Number(b.dataset.step);
@@ -3691,7 +3919,7 @@ var I18N_HI = {
   'Product': 'प्रोडक्ट', 'Shape': 'आकार', 'Pack size': 'पैक साइज़', 'Weight (g)': 'वज़न (ग्राम)',
   'Masterbatch': 'मास्टरबैच', 'Output / hr': 'उत्पादन / घंटा', 'Output / day': 'उत्पादन / दिन',
   'Open qty': 'चालू मात्रा', 'Clear filter': 'फ़िल्टर हटाएँ', 'Clear products': 'प्रोडक्ट हटाएँ',
-  'Type': 'प्रकार', 'Clear filters': 'फ़िल्टर हटाएँ', 'ⓘ How lines are judged': 'ⓘ लाइनें कैसे आँकी जाती हैं',
+  'Type': 'प्रकार', 'Months': 'महीने', 'Clear filters': 'फ़िल्टर हटाएँ', 'ⓘ How lines are judged': 'ⓘ लाइनें कैसे आँकी जाती हैं',
   'No open jobs match the filters.': 'इन फ़िल्टर से कोई चालू काम नहीं।',
   'Switch language: English / Hindi': 'भाषा बदलें: English / हिंदी',
   'Select one or more products': 'एक या अधिक प्रोडक्ट चुनें',
