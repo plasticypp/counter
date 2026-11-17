@@ -31,7 +31,7 @@
     --dim: #5b6270;           /* secondary text */
     --faint: #666d7c;         /* tertiary — was #9298a6 (2.89:1, failed AA); now 4.59:1 worst ground */
     --primary: #1e40af;       /* structural blue — brand/active state */
-    --amber: #b5650f;         /* signal accent — data aging */
+    --amber: #a85a0a;         /* signal accent — data aging */
     --ok: #157a4a;            /* data fresh */
     --today: #d1374a;         /* today marker / data stale — distinct from amber */
 
@@ -40,8 +40,8 @@
        a bar that fails contrast is a machine a supervisor cannot identify. --m3 (#e07c1a,
        2.97:1) and --m7 (#b89a1c, 2.74:1) were below that line and are darkened here.
        Colour is never the ONLY channel: every bar also prints its machine number. */
-    --m1: #2f7de0; --m2: #16a367; --m3: #b35f0a; --m4: #9457e0;
-    --m5: #e0417a; --m6: #0ea5a0; --m7: #8f7810; --mx: #6f7686;
+    --m1: #2f7de0; --m2: #0f8f59; --m3: #b35f0a; --m4: #9457e0;
+    --m5: #e0417a; --m6: #0b8a86; --m7: #8f7810; --mx: #6f7686;
 
     --mono: "Geist Mono", ui-monospace, "SF Mono", "Cascadia Mono", "Consolas", monospace;
     --sans: "Geist", -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
@@ -1356,14 +1356,14 @@
   .chip-color { padding: 2px !important; min-width: 0; border-radius: 7px; }
   .cblock {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 26px; height: 22px; border-radius: 5px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.28);
+    width: 26px; height: 22px; border-radius: 5px; box-shadow: inset 0 0 0 1.5px #5b6270;
     font-style: normal; font-size: 13px; font-weight: 900; line-height: 1;
   }
   /* Beat the machine key's 10px dot rule (.legend .chip i), which also matched these blocks. */
   .legend .chip-color .cblock, .chip-color .cblock { width: 26px; height: 22px; border-radius: 5px; }
   @media (max-width: 620px) { .legend .chip-color .cblock, .chip-color .cblock { width: 24px; } }
   .chip-color.on { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary); background: var(--panel); }
-  .chip-color.on .cblock::after { content: "✓"; }
+  /* Picked = blue ring; the block keeps its letters (no tick on top). */
   .cblock-cell { width: 34px; height: 16px; vertical-align: middle; }
   @media (pointer: coarse) {
     /* 30px chip + 14px gap = 44px pitch; the tap area (border box 30 = padding box 28 + 16)
@@ -1375,6 +1375,28 @@
       height: calc(100% + 16px);
     }
     .cblock { width: 30px; height: 24px; }
+  }
+
+  /* Colour blocks carry a 2-letter code (colour-blind safe); edges are a dark 1.5px ring so
+     WHITE / SILVER / YELLOW clear 3:1 against the page. */
+  .legend .chip-color .cblock, .chip-color .cblock, .cblock {
+    width: 30px; font: 800 10px/1 var(--mono); letter-spacing: .02em;
+  }
+  .cblock-cell { width: 36px; height: 18px; font: 800 10px/1 var(--mono); }
+  /* Light product colours on a code chip need a visible edge too. */
+  .is-tinted { box-shadow: inset 0 0 0 1px rgba(17,24,39,.35); }
+  .st-short { display: none; }
+  @media (max-width: 620px) {
+    .st-full { display: none; } .st-short { display: inline; }
+    /* The phone .modes rule (full-width board switch) also caught Summary's Month|Year. */
+    .toolbar .sum-scope { width: auto; flex: 0 0 auto; flex-wrap: nowrap; order: -1; }
+    .toolbar .sum-scope .mode { flex: 0 0 auto; }
+    /* Ten colour blocks on one phone row: the blocks are self-labelled, so the group label goes. */
+    .legend .chip-color .cblock, .chip-color .cblock { width: 26px; }
+    .fgroup[aria-label="Colour"] .fg-label { display: none; }
+    .fgroup[aria-label="Colour"] { gap: 3px; }
+    .legend .mchip .mword { display: none; }
+    .tb-sort select { max-width: 112px; }
   }
 
   /* Months and Today only steer the desktop day grid; tablets and phones show bars instead. */
@@ -2136,7 +2158,7 @@ function renderView() {
   MACHINES_SEEN.forEach(function (m) {
     var on = !!MACHINE_SEL[String(m)];
     tb += '<button type="button" class="chip mchip' + (on ? ' on' : '') + '" data-machine="' + esc(m) +
-      '" aria-pressed="' + on + '" aria-label="Machine ' + esc(m) + '"><i style="background:' + colorFor(m) + '"></i>M' + esc(m) + '</button>';
+      '" aria-pressed="' + on + '" aria-label="Machine ' + esc(m) + '"><i style="background:' + colorFor(m) + '"></i><span class="mword">M</span>' + esc(m) + '</button>';
   });
   if (hasMachineSel()) {
     tb += '<button type="button" class="chip chip-clear" id="machineClear"><span aria-hidden="true">✕</span> All machines</button>';
@@ -2486,12 +2508,20 @@ function chipGroup(state, key, label, values, text) {
       return chip('data-chip-key="' + key + '" data-chip-val="' + esc(v) + '"', text ? text(v) : esc(v), isOnChip(state, key, v));
     }).join('') + '</span>';
 }
-// A colour filter is the colour itself: a bright block, its name in the tooltip and for screen
-// readers. Picked = blue ring and a tick.
+/* Colour alone fails colour-blind readers (GREEN/RED, BLACK/MAROON merge under deuteranopia /
+   protanopia — colour review 2026-11-17), so every block carries a two-letter code in
+   contrast-picked ink. Full name stays in the tooltip and for screen readers. */
+var COLOUR_ABBR = { BLACK: 'BK', GREY: 'GY', SILVER: 'SV', GREEN: 'GN', MAROON: 'MR', GOLDEN: 'GD',
+  BLUE: 'BL', RED: 'RD', WHITE: 'WH', YELLOW: 'YL' };
+function colourAbbr(c) {
+  var k = String(c == null ? '' : c).trim().toUpperCase();
+  return COLOUR_ABBR[k] || k.slice(0, 2);
+}
+// A colour filter is the colour itself: a bright block with its code. Picked = blue ring.
 function colourChip(state, key, v) {
   var hex = productHex(v);
   return chip('data-chip-key="' + key + '" data-chip-val="' + esc(v) + '" title="' + esc(v) + '" aria-label="' + esc(v) + '"',
-    '<i class="cblock" style="background:' + productFill(v) + ';color:' + inkOn(hex) + '" aria-hidden="true"></i>',
+    '<i class="cblock" style="background:' + productFill(v) + ';color:' + inkOn(hex) + '" aria-hidden="true">' + esc(colourAbbr(v)) + '</i>',
     isOnChip(state, key, v), 'chip-color');
 }
 // "1.2 LTR" → "1.2" (the group label says litres); anything else, e.g. CAPS, as typed.
@@ -2503,7 +2533,8 @@ function sizeChipText(v) {
 function colourBlockHtml(c) {
   var hex = productHex(c);
   if (!hex) return esc(c || '—');
-  return '<i class="cblock cblock-cell" style="background:' + productFill(c) + '" title="' + esc(c) + '" aria-hidden="true"></i><span class="sr-only">' + esc(c) + '</span>';
+  return '<i class="cblock cblock-cell" style="background:' + productFill(c) + ';color:' + inkOn(hex) + '" title="' + esc(c) +
+    '" aria-hidden="true">' + esc(colourAbbr(c)) + '</i><span class="sr-only">' + esc(c) + '</span>';
 }
 function filterLine(inner) { return inner ? '<div class="fline">' + inner + '</div>' : ''; }
 // A small inline dropdown in the same pill style as the sort menu.
@@ -2521,12 +2552,18 @@ function colourSwatch(c) {
   return (hex ? '<i class="pm-sw" style="background:' + productFill(c) + '" aria-hidden="true"></i>' : '') + esc(c);
 }
 
+// Phones show a shorter word for the long, rarely used statuses; the full word elsewhere.
+var STATUS_SHORT = { 'Late + Short': 'Late+Short', 'no invoice': 'No inv', 'no order qty': 'No qty' };
+function statusLabel(st) {
+  if (!STATUS_SHORT[st]) return esc(st);
+  return '<span class="st-full">' + esc(st) + '</span><span class="st-short">' + esc(STATUS_SHORT[st]) + '</span>';
+}
 var STATUS_ORDER = ['OTIF', 'Late', 'Short', 'Late + Short', 'On plan', 'Open line'];
 function statusChips(state, statuses) {
   var rank = function (st) { var i = STATUS_ORDER.indexOf(st); return i === -1 ? 99 : i; };
   return statuses.slice().sort(function (a, b) { return rank(a) - rank(b); }).map(function (st) {
     return chip('data-chip-key="status" data-chip-val="' + esc(st) + '"',
-      '<span aria-hidden="true">' + (STATUS_ICONS[st] || '–') + '</span> ' + esc(st), isOnChip(state, 'status', st));
+      '<span aria-hidden="true">' + (STATUS_ICONS[st] || '–') + '</span> ' + statusLabel(st), isOnChip(state, 'status', st));
   }).join('');
 }
 
@@ -4053,7 +4090,7 @@ var I18N_HI = {
   'Timeline': 'समय-रेखा', 'not scheduled': 'शेड्यूल नहीं', 'Color': 'रंग', 'Colour': 'रंग',
   'Order Qty': 'ऑर्डर मात्रा', 'Ready Stock': 'तैयार स्टॉक', 'RM Req': 'RM ज़रूरत', 'Filters': 'फ़िल्टर',
   'Late': 'देर', 'Short': 'कम', 'Late + Short': 'देर + कम', 'On plan': 'प्लान पर',
-  'no invoice': 'इनवॉइस नहीं', 'no order qty': 'ऑर्डर मात्रा नहीं',
+  'no invoice': 'इनवॉइस नहीं', 'no order qty': 'ऑर्डर मात्रा नहीं', 'No inv': 'इनवॉइस नहीं', 'No qty': 'मात्रा नहीं',
   'This month': 'इस महीने', 'Last month': 'पिछले महीने', 'This year': 'इस साल', 'Dates': 'तारीखें',
   'Supplied lines': 'सप्लाई लाइनें', 'In full': 'पूरी मात्रा', 'PO Date': 'PO तारीख', 'Due': 'नियत तारीख',
   'Shipped': 'भेजा', 'vs Due': 'नियत से', 'Line status': 'लाइन स्थिति', 'on due date': 'नियत तारीख पर',
