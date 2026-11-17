@@ -1136,7 +1136,10 @@
   /* Below 1500px the header row is tight: the YPP mark stays, the "Dispatch" word goes. */
   @media (max-width: 1500px) { header h1 { display: none; } }
   .list-head .lh-hint { flex: 1 1 auto; }
-  @media (max-width: 620px) { .list-head .lh-hint { display: none; } .list-head { align-items: center; } }
+  @media (max-width: 620px) {
+    .list-head .lh-hint { display: none; } .list-head { align-items: center; }
+    .filter-wrap { max-width: none; flex-basis: 100%; }
+  }
   .tab { padding: 6px 12px; }
   .mode { padding: 6px 12px; min-height: 32px; }
   .lang-toggle { min-height: 32px; }
@@ -1302,6 +1305,44 @@
     .grand.kpi.open-totals:has(> div:nth-child(5)) { grid-template-columns: repeat(3, 1fr); }
   }
 
+  /* ================= REVIEW FIXES (2026-11-17, density + touch-target audits) =================
+     Touch: the compact pass left phones at 34–36px targets (a later block overrode the 44px
+     rules). On touch screens the main controls go back to a real 44px, and chips keep their
+     compact look but get an invisible 44px tap area; their lines are spaced so the tap areas
+     of neighbouring lines do not overlap. A mouse keeps the compact sizes. */
+  @media (pointer: coarse) {
+    .mode, .tab, .lang-toggle, header .counter-link, .counter-link { min-height: 44px; }
+    header .counter-link { min-width: 44px; justify-content: center; }
+    header .fold-btn { height: 44px; min-width: 44px; }
+    .toolbar .chip, .fline .chip, .toolbar .jump-today, .tb-sort { position: relative; }
+    .toolbar .chip::after, .fline .chip::after, .toolbar .jump-today::after, .tb-sort::after {
+      content: ""; position: absolute; top: 50%; height: 44px; transform: translateY(-50%);
+      left: min(0px, calc((100% - 44px) / 2)); right: min(0px, calc((100% - 44px) / 2));
+    }
+    /* The rows scroll sideways, and a scroll box clips vertically too — so the row itself must
+       be tall enough to hold each chip's 44px tap area: padding, not margin. */
+    .toolbar { margin-bottom: 0; }
+    .fline { margin-bottom: 2px; }
+    .tb-scroll, .fline { gap: 8px; padding-top: 7px; padding-bottom: 7px; }
+    .tb-scroll .chip, .fline .chip, .tb-scroll .jump-today, .tb-scroll .tb-sort { min-height: 30px; }
+    .group-row td, .card-group-head, .tcard-group { padding-top: 11px; padding-bottom: 11px; }
+  }
+  /* Selects inside the pill fill its height, so the whole pill opens the menu. */
+  .tb-sort select { align-self: stretch; }
+
+  /* Hierarchy: sub-tabs read as a lighter level than the four board modes — underline, not a
+     second filled bar. */
+  .tabs { background: transparent; border-color: transparent; padding: 0; gap: 4px; }
+  .tab.active { background: transparent; color: var(--primary); box-shadow: inset 0 -3px 0 var(--primary); border-radius: 0; }
+  /* Subtotal rows: a rule and bold figures, not a full blue band competing with the data. */
+  .subtotal-row td, .subtotal-row td:first-child, .subtotal-row td:nth-child(2) { background: var(--panel-alt); }
+  .tcard-sub, .card-sub, .card-sub-label { background: var(--panel-alt); }
+  /* Zero figures recede so real quantities stand out. */
+  td.num.is-zero { color: var(--faint); font-weight: 400; }
+  /* Phone timeline: start/end dates as quiet text, not the loudest blocks on the card. */
+  .cbar-lbl.is-filled, .cbar-lbl { background: none; border-color: transparent; color: var(--dim); padding: 0; }
+  @media (max-width: 620px) { .grand.kpi small .delta-of { display: none; } }
+
   /* 360px phones: five-digit quantities in adjacent card cells ran into each other. */
   @media (max-width: 380px) {
     .metric-row b, .card-sub b { font-size: var(--fs-sm); letter-spacing: -.02em; }
@@ -1431,6 +1472,7 @@ function openFilterPanel(rows) {
     chipGroup(OPEN_F, 'shape', 'Shape', pick(function (r) { return masterOf(r.code).shape; })) +
     chipGroup(OPEN_F, 'size', 'Pack size', pick(function (r) { return masterOf(r.code).size; })));
 }
+function zeroCls(v) { return Number(v) === 0 ? ' is-zero' : ''; }
 // Board totals as one slim strip under the toolbar (was a tall block after the table).
 function openTotalsHtml(grand, showRmMb) {
   var cell = function (label, v) { return '<div><span>' + label + '</span><b>' + fmtNum(v) + '</b></div>'; };
@@ -2056,8 +2098,8 @@ function renderView() {
       var extraTd = showRmMb ? '<td class="num">' + fmtNum(r.rmReq) + '</td><td class="num">' + fmtNum(r.mb) + '</td>' : '';
       html += '<tr' + gm + (fc ? ' class="' + fc.trim() + '"' : '') + '><td class="data-col">' + codeChipHtml(r.code, r.color, 'code-chip', link && r.code) + '</td>' +
         '<td class="data-col"><span' + nameAttrs(r) + '>' + esc(r.name) + '</span>' + (showPo(k) ? poTag(r) : '') + '</td>' +
-        '<td class="num">' + fmtNum(r.orderQty) + '</td><td class="num">' + fmtNum(r.supplied) + '</td>' +
-        '<td class="num">' + fmtNum(r.readyStock) + '</td>' +
+        '<td class="num">' + fmtNum(r.orderQty) + '</td><td class="num' + zeroCls(r.supplied) + '">' + fmtNum(r.supplied) + '</td>' +
+        '<td class="num' + zeroCls(r.readyStock) + '">' + fmtNum(r.readyStock) + '</td>' +
         '<td class="num' + (Number(r.balance) < 0 ? ' is-neg' : '') + '">' + fmtNum(r.balance) + '</td>' + extraTd +
         '<td class="num">' + esc(r.days || '—') + '</td>' + dateCellsHtml(r) + '</tr>';
     });
@@ -2957,7 +2999,9 @@ function periodTotals(d, year, month, maxDay) {
 function deltaHtml(now, before, against) {
   if (!before) return '<small class="is-na">first period on record</small>';
   var p = Math.round((now / before) * 100);
-  return '<small class="' + (p >= 100 ? 'late-good' : 'is-na') + '">' + (p > 100 ? '▲ ' : '') + p + '% of ' + against + '</small>';
+  // On a phone only "▲ 117%" shows; the comparison is in the tooltip.
+  return '<small class="' + (p >= 100 ? 'late-good' : 'is-na') + '" title="' + p + '% of ' + esc(against) + '">' +
+    (p > 100 ? '▲ ' : '') + p + '%<span class="delta-of"> of ' + esc(against) + '</span></small>';
 }
 
 // One dropdown in a filter bar. `state` is the object it edits (SUM for Summary, LIST for the
