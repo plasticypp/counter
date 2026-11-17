@@ -940,6 +940,38 @@
     .chipbar .sum-scope { flex: 0 0 auto; width: auto; order: 0; }
   }
 
+  /* Chip-row filter panels (Products look) used on every tab: rows stack full width. */
+  .chip-panel.pm-filters { flex-wrap: nowrap; align-items: stretch; gap: 6px; padding: var(--sp-2) var(--sp-3); }
+  /* Products: the Filters chip that folds the rows exists only on phones. */
+  .pm-fold-bar { display: none; gap: 6px; }
+  @media (max-width: 620px) {
+    .pm-fold-bar { display: flex; }
+    .pm-foldable:not(.is-open) .pm-row { display: none; }
+    .pm-foldable .pm-clear-row { display: none; }
+    .chip-panel.pm-filters { padding: var(--sp-2); }
+  }
+
+  /* Completed / Summary figures: a compact strip, not a wall of tiles (2026-11-17). The
+     method note folds behind a summary line. */
+  .grand.kpi div { padding: var(--sp-2) var(--sp-3); flex-basis: 110px; }
+  .grand.kpi b { font-size: var(--fs-xl); }
+  details.kpi-note summary { cursor: pointer; color: var(--dim); font-weight: 600; width: max-content; max-width: 100%; }
+  details.kpi-note[open] summary { margin-bottom: 4px; }
+  @media (max-width: 620px) {
+    .grand.kpi { display: grid; grid-template-columns: repeat(4, 1fr); }
+    .grand.kpi:has(> div:nth-child(5)) { grid-template-columns: repeat(3, 1fr); }
+    .grand.kpi div { padding: 6px 8px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); min-width: 0; }
+    .grand.kpi span { font-size: 10px; letter-spacing: .02em; display: block; line-height: 1.2; }
+    .grand.kpi b { font-size: var(--fs-base); }
+    .grand.kpi small { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kpi-note { margin-bottom: var(--sp-2); }
+    .group-bar { flex-wrap: nowrap; align-items: center; padding: 0 0 var(--sp-2); gap: var(--sp-2); }
+    .group-bar .group-sort { flex: 1 1 auto; min-width: 0; }
+    .group-bar .group-sort > span { display: none; }
+    .group-bar .group-sort select { min-height: 40px; }
+    .group-bar .chip { flex: 0 0 auto; min-height: 40px; }
+  }
+
   /* ---------------- download menu ---------------- */
   .export-wrap { position: relative; }
   .export-wrap[hidden] { display: none; }
@@ -1066,8 +1098,12 @@
      2px at 640 — so it was effectively hidden, and scrolling inside the sliver fought the page.
      Below 1000px the table no longer scrolls vertically: the page is the one vertical scroller
      and the table only scrolls sideways. Declared last so it wins on source order. */
+  /* overscroll-behavior must go back to auto here. The desktop `contain` stopped scroll
+     chaining, so an up/down swipe that began on a table (Products, Test Reports, every
+     Completed tab) scrolled nothing: the box cannot scroll vertically and would not hand the
+     swipe to the page. Measured 2026-11-17 at 390px: 0px of page scroll over any table. */
   @media (max-width: 1000px) {
-    .done-scroll { flex: none; min-height: 0; overflow-x: auto; overflow-y: hidden; }
+    .done-scroll { flex: none; min-height: 0; overflow-x: auto; overflow-y: hidden; overscroll-behavior: auto; }
   }
   /* Phones: the 269px top bar also scrolled nowhere, leaving 371px of a 640px screen for the
      data. Let the whole document scroll and the top bar scroll away with it; scrolling to the
@@ -1189,6 +1225,45 @@ var MACHINE_SEL = {};   // Open board: machines ticked in the key, e.g. { '5': t
 function hasMachineSel() { return Object.keys(MACHINE_SEL).length > 0; }
 function machineSelText() { return Object.keys(MACHINE_SEL).sort(function (a, b) { return a - b; }).join(', '); }
 
+/* Open board chip filters (multi-select, see chipRow). Machine is not here: the machine key
+   above the board already is a multi-select filter. Shape and pack size come from the Masters
+   sheet by product code; a code missing from Masters has neither and so drops out of a
+   shape/size filter. Session only, like the other tabs' filters. */
+var OPEN_F_DEFAULT = { type: [], color: [], shape: [], size: [], _panel: '' };
+var OPEN_F = Object.assign({}, OPEN_F_DEFAULT);
+var OPEN_F_KEYS = ['type', 'color', 'shape', 'size'];
+var MASTER_BY_CODE = null;
+function masterOf(code) {
+  if (!MASTER_BY_CODE) {
+    MASTER_BY_CODE = {};
+    (PRODUCTS || []).forEach(function (p) { MASTER_BY_CODE[p.code] = p; });
+  }
+  return MASTER_BY_CODE[code] || {};
+}
+function passesOpenFilter(r) {
+  var m = masterOf(r.code);
+  return inSel(OPEN_F.type, productType(r.code)) && inSel(OPEN_F.color, r.color) &&
+    inSel(OPEN_F.shape, m.shape) && inSel(OPEN_F.size, m.size);
+}
+function openFilterBar(rows) {
+  var n = selCount(OPEN_F, OPEN_F_KEYS);
+  var pick = function (f) { return uniqueSorted(rows.map(f)).map(String); };
+  var html = '<div class="chipbar">' + panelChip(OPEN_F, n) +
+    (n ? chip('id="openReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '') + '</div>';
+  if (OPEN_F._panel !== 'more') return html;
+  return html + '<div class="chip-panel pm-filters">' +
+    chipRow(OPEN_F, 'type', 'Type', pick(function (r) { return productType(r.code); })) +
+    chipRow(OPEN_F, 'color', 'Colour', pick(function (r) { return r.color; }), colourSwatch) +
+    chipRow(OPEN_F, 'shape', 'Shape', pick(function (r) { return masterOf(r.code).shape; })) +
+    chipRow(OPEN_F, 'size', 'Pack size', pick(function (r) { return masterOf(r.code).size; })) +
+    '</div>';
+}
+function bindOpenFilters(mainEl) {
+  bindChips(mainEl, OPEN_F, 'data-openf');
+  var rs = document.getElementById('openReset');
+  if (rs) rs.addEventListener('click', function () { OPEN_F = Object.assign({}, OPEN_F_DEFAULT); render(); });
+}
+
 /* ---------------------------------------------------------------------------
    Group sorting and folding, per tab. The first option of each list is the default.
    Both are remembered on this device only (localStorage), so a shared wall tablet and a
@@ -1202,17 +1277,17 @@ var GROUP_SORTS = {
   dinvoice: [['new', 'Invoice date · newest'], ['old', 'Invoice date · oldest']],
   dproduct: [['code', 'Code'], ['supplied', 'Most supplied'], ['left', 'Most still to supply']],
 };
-/* Groups start COLLAPSED: the board opens as a list of headers with their subtotals, and the
-   reader opens the ones they need. So what is remembered is the set of OPENED groups, per
-   tab. A new PO or invoice therefore also arrives collapsed. (v1 remembered folded groups;
-   that list is ignored, so every device starts collapsed once.) */
+/* Groups start OPEN on every tab (user's choice, 2026-11-17). A group folded by hand stays
+   folded only for this page load: FOLDED is not stored, so a reload — or the next person at a
+   shared tablet — sees everything open again. Only the sort choice is remembered. */
 var PREFS_KEY = 'dispatch.groups.v1';
 var PREFS = (function () {
   try {
     var p = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
-    return { sort: p.sort || {}, expanded: p.expanded || {} };
-  } catch (e) { return { sort: {}, expanded: {} }; }
+    return { sort: p.sort || {} };
+  } catch (e) { return { sort: {} }; }
 })();
+var FOLDED = {};   // { view: { groupKey: 1 } } — in memory only
 function savePrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(PREFS)); } catch (e) { /* not stored */ } }
 function groupSort() {
   var opts = GROUP_SORTS[VIEW];
@@ -1220,10 +1295,10 @@ function groupSort() {
   var s = PREFS.sort[VIEW];
   return opts.some(function (o) { return o[0] === s; }) ? s : opts[0][0];
 }
-function isFolded(key) { return !(PREFS.expanded[VIEW] && PREFS.expanded[VIEW][key]); }
+function isFolded(key) { return !!(FOLDED[VIEW] && FOLDED[VIEW][key]); }
 function setFolded(key, on) {
-  var m = PREFS.expanded[VIEW] || (PREFS.expanded[VIEW] = {});
-  if (on) delete m[key]; else m[key] = 1;
+  var m = FOLDED[VIEW] || (FOLDED[VIEW] = {});
+  if (on) m[key] = 1; else delete m[key];
 }
 function cmpNat(a, b) { return String(a).localeCompare(String(b), 'en', { numeric: true }); }
 
@@ -1261,7 +1336,6 @@ function bindGroupControls(mainEl) {
       var i = h.dataset.gh, key = GROUP_KEYS[i];
       var fold = !isFolded(key);
       setFolded(key, fold);
-      savePrefs();
       mainEl.querySelectorAll('[data-gm="' + i + '"]').forEach(function (el) { el.classList.toggle('is-folded', fold); });
       mainEl.querySelectorAll('[data-gh="' + i + '"] .gtoggle').forEach(function (b) { b.setAttribute('aria-expanded', String(!fold)); });
       refreshFoldAll(mainEl);
@@ -1270,9 +1344,8 @@ function bindGroupControls(mainEl) {
   var fa = mainEl.querySelector('#foldAll');
   if (fa) fa.addEventListener('click', function () {
     var fold = GROUP_KEYS.some(function (k) { return !isFolded(k); });
-    PREFS.expanded[VIEW] = {};
-    if (!fold) GROUP_KEYS.forEach(function (k) { setFolded(k, false); });
-    savePrefs();
+    FOLDED[VIEW] = {};
+    if (fold) GROUP_KEYS.forEach(function (k) { setFolded(k, true); });
     render();
   });
   var gs = mainEl.querySelector('#groupSort');
@@ -1417,6 +1490,7 @@ function applyFilter(rows, skipMachine) {
     return !isFinite(b) || b > 0;
   });
   if (PICKED.length) rows = rows.filter(function (r) { return isPicked(r.code); });
+  if (MODE === 'open') rows = rows.filter(passesOpenFilter);
   if (FILTER) {
     var q = FILTER.toLowerCase();
     // PO is searchable too — By PO is the default view, yet filtering by a PO number used to
@@ -1658,7 +1732,10 @@ function render() {
     // Three different facts, three different messages. "No jobs scheduled" when the sheet is
     // actually full of completed rows would send the reader looking for missing data.
     var emptyMsg;
-    if (PICKED.length) {
+    if (selCount(OPEN_F, OPEN_F_KEYS)) {
+      emptyMsg = '<div class="empty">No open jobs match the filters.' +
+        ' <button type="button" class="linkish" id="openReset">Clear filters</button></div>';
+    } else if (PICKED.length) {
       emptyMsg = '<div class="empty">No open lines for ' + esc(PICKED.join(', ')) + (hasMachineSel() ? ' on machine ' + esc(machineSelText()) : '') + '.'
         + ' <button type="button" class="linkish" id="emptyClear">Clear products</button></div>';
     } else if (FILTER) {
@@ -1679,10 +1756,14 @@ function render() {
     if (ec) ec.addEventListener('click', clearFilter);
     var em = document.getElementById('emptyMachines');
     if (em) em.addEventListener('click', function () { MACHINE_SEL = {}; render(); });
+    bindOpenFilters(mainEl);
     return;
   }
 
-  var html = groupBarHtml();
+  // Chip values come from every outstanding line, not the filtered ones, so picking BLACK
+  // does not make the other colours vanish.
+  var pool = ROWS.concat(UNPLANNED).filter(function (r) { var b = Number(r.balance); return !isFinite(b) || b > 0; });
+  var html = openFilterBar(pool) + groupBarHtml();
 
   // ---- legend ----
   html += '<div class="legend">';
@@ -1882,6 +1963,7 @@ function render() {
 
   measureFrozenOffset();
   bindGroupControls(mainEl);
+  bindOpenFilters(mainEl);
   var jt = document.getElementById('jumpToday');
   if (jt) jt.addEventListener('click', scrollToToday);
   mainEl.querySelectorAll('[data-machine]').forEach(function (b) {
@@ -1990,7 +2072,8 @@ function judgedLines() {
 /* Filters for By Invoice / By PO / By Product. The date range applies to the delivered date
    (in By Invoice, each invoice's own date) or to the PO date. Dates are 'yyyy-MM-dd', so
    plain string comparison orders them correctly. */
-var LIST_DEFAULT = { status: '', brand: '', type: '', color: '', machine: '', dateBy: 'delivered', from: '', to: '', preset: '', _panel: '' };
+var LIST_DEFAULT = { status: [], brand: [], type: [], color: [], machine: [], dateBy: 'delivered', from: '', to: '', preset: '', _panel: '' };
+var LIST_MORE = ['brand', 'type', 'color', 'machine'];
 var LIST = Object.assign({}, LIST_DEFAULT);
 
 function inRange(day) {
@@ -2000,11 +2083,11 @@ function inRange(day) {
 }
 
 function passesList(l) {
-  if (LIST.status && statusWord(l) !== LIST.status) return false;
-  if (LIST.brand && l.brand !== LIST.brand) return false;
-  if (LIST.type && productType(l.code) !== LIST.type) return false;
-  if (LIST.color && l.color !== LIST.color) return false;
-  if (LIST.machine && String(l.usualMachine) !== LIST.machine) return false;
+  if (!inSel(LIST.status, statusWord(l))) return false;
+  if (!inSel(LIST.brand, l.brand)) return false;
+  if (!inSel(LIST.type, productType(l.code))) return false;
+  if (!inSel(LIST.color, l.color)) return false;
+  if (!inSel(LIST.machine, l.usualMachine)) return false;
   if (LIST.dateBy === 'po') return inRange(l.poDate);
   // By Invoice judges the range per invoice (see completedGroups); a line stays if any of
   // its invoices falls in it.
@@ -2024,12 +2107,37 @@ function chip(attrs, label, on, extraCls) {
     ' aria-pressed="' + !!on + '">' + label + '</button>';
 }
 
+/* Multi-select chip filters, shared by every tab. A chip filter's value is an ARRAY of picked
+   values; empty = no filter. Within one row the picks widen the list (BLACK or GOLDEN); across
+   rows they narrow it (BLACK or GOLDEN, and machine 5). Arrays are replaced, never mutated, so
+   a *_DEFAULT object can be shallow-copied safely. */
+function inSel(sel, v) { return !sel || !sel.length || sel.indexOf(String(v)) !== -1; }
+function isOnChip(state, key, v) { return (state[key] || []).indexOf(String(v)) !== -1; }
+function selCount(state, keys) { return keys.filter(function (k) { return state[k] && state[k].length; }).length; }
+function toggleSel(sel, v) {
+  sel = sel || [];
+  return sel.indexOf(v) === -1 ? sel.concat([v]) : sel.filter(function (x) { return x !== v; });
+}
+// One labelled row of chips (the Products-tab look). Wraps on a wide screen, swipes sideways
+// on a phone, so even a long list costs one line there.
+function chipRow(state, key, label, values, text) {
+  if (!values.length) return '';
+  return '<div class="pm-row"><span class="pm-label">' + esc(label) + '</span><div class="pm-chips">' +
+    values.map(function (v) {
+      return chip('data-chip-key="' + key + '" data-chip-val="' + esc(v) + '"', text ? text(v) : esc(v), isOnChip(state, key, v));
+    }).join('') + '</div></div>';
+}
+function colourSwatch(c) {
+  var hex = productHex(c);
+  return (hex ? '<i class="pm-sw" style="background:' + hex + '" aria-hidden="true"></i>' : '') + esc(c);
+}
+
 var STATUS_ORDER = ['OTIF', 'Late', 'Short', 'Late + Short', 'On plan', 'Open line'];
 function statusChips(state, statuses) {
   var rank = function (st) { var i = STATUS_ORDER.indexOf(st); return i === -1 ? 99 : i; };
   return statuses.slice().sort(function (a, b) { return rank(a) - rank(b); }).map(function (st) {
     return chip('data-chip-key="status" data-chip-val="' + esc(st) + '"',
-      '<span aria-hidden="true">' + (STATUS_ICONS[st] || '–') + '</span> ' + esc(st), state.status === st);
+      '<span aria-hidden="true">' + (STATUS_ICONS[st] || '–') + '</span> ' + esc(st), isOnChip(state, 'status', st));
   }).join('');
 }
 
@@ -2042,6 +2150,17 @@ function machineOptions(items) {
   return uniqueSorted(items.map(function (x) { return x.usualMachine; })).map(function (m) {
     return { value: String(m), text: 'Machine ' + m };
   });
+}
+// Brand / Type / Colour / Usual machine as multi-select chip rows — the Filters panel of the
+// Completed tabs and Summary. `items` carry brand, code, color and usualMachine.
+function moreChipRows(state, items) {
+  var pick = function (f) { return uniqueSorted(items.map(f)).map(String); };
+  return '<div class="chip-panel pm-filters">' +
+    chipRow(state, 'brand', 'Brand', pick(function (x) { return x.brand; })) +
+    chipRow(state, 'type', 'Type', pick(function (x) { return productType(x.code); })) +
+    chipRow(state, 'color', 'Colour', pick(function (x) { return x.color; }), colourSwatch) +
+    chipRow(state, 'machine', 'Machine', pick(function (x) { return x.usualMachine; })) +
+    '</div>';
 }
 
 function istToday() { return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10); }
@@ -2059,9 +2178,9 @@ function presetRange(p) {
 
 function listControls() {
   var all = judgedLines();
-  var more = ['brand', 'type', 'color', 'machine'].filter(function (k) { return LIST[k]; }).length;
+  var more = selCount(LIST, LIST_MORE);
   var custom = LIST.preset === 'custom' && (LIST.from || LIST.to);
-  var any = LIST.status || more || LIST.from || LIST.to;
+  var any = LIST.status.length || more || LIST.from || LIST.to;
   // Filters and Clear lead the row: on a phone the row scrolls sideways, and what is active
   // must be visible without scrolling. An active date preset also shows on the Filters chip.
   var html = '<div class="chipbar">' +
@@ -2076,12 +2195,7 @@ function listControls() {
       LIST._panel === 'dates' || custom) +
     '</div>';
   if (LIST._panel === 'more') {
-    html += '<div class="chip-panel">' +
-      sumSelect('brand', 'Brand', uniqueSorted(all.map(function (l) { return l.brand; })), 'All brands', LIST, 'data-list') +
-      sumSelect('type', 'Type', uniqueSorted(all.map(function (l) { return productType(l.code); })), 'All types', LIST, 'data-list') +
-      sumSelect('color', 'Colour', uniqueSorted(all.map(function (l) { return l.color; })), 'All colours', LIST, 'data-list') +
-      sumSelect('machine', 'Usual machine', machineOptions(all), 'All machines', LIST, 'data-list') +
-      '</div>';
+    html += moreChipRows(LIST, all);
   } else if (LIST._panel === 'dates') {
     html += '<div class="chip-panel">' +
       sumSelect('dateBy', 'Date by', [{ value: 'delivered', text: VIEW === 'dinvoice' ? 'Invoice date' : 'Delivered date' },
@@ -2098,7 +2212,7 @@ function bindChips(mainEl, state, attr) {
   mainEl.querySelectorAll('[data-chip-key]').forEach(function (b) {
     b.addEventListener('click', function () {
       var k = b.dataset.chipKey, v = b.dataset.chipVal;
-      state[k] = state[k] === v ? '' : v;
+      state[k] = Array.isArray(state[k]) ? toggleSel(state[k], v) : (state[k] === v ? '' : v);
       render();
     });
   });
@@ -2291,12 +2405,12 @@ function renderCompleted() {
     '<div><span>OTIF</span><b class="' + pctTone(s.otif, s.judged) + '">' + pct(s.otif, s.judged) + '</b></div>' +
     '<div><span>In full</span><b class="' + pctTone(s.inFull, s.judged) + '">' + pct(s.inFull, s.judged) + '</b></div>' +
     '</div>';
-  html += '<p class="kpi-note">Due = PO date + <b>' + esc(COMPLETED.leadDays) + ' days</b> · ' +
+  html += '<details class="kpi-note"><summary>ⓘ How lines are judged</summary>Due = PO date + <b>' + esc(COMPLETED.leadDays) + ' days</b> · ' +
     'Delivered = last invoice date · In full = supplied ≥ <b>' + esc(100 - COMPLETED.tolerancePct) + '%</b> of order qty · ' +
     'OTD/OTIF judged on <b>' + s.judged + '</b> of ' + s.lines + ' lines' +
     (onPlanN ? ' · <b>' + onPlanN + '</b> still on plan, judged once taken off it' : '') +
     (unjudged > 0 ? ' (' + unjudged + ' have no invoice, invoice date or order qty)' : '') +
-    ' · change these on the sheet’s Settings tab.</p>';
+    ' · change these on the sheet’s Settings tab.</details>';
 
   var cols = completedColumns();
   var g = completedGroups(lines);
@@ -2411,7 +2525,7 @@ function renderTestReports() {
 
 /* Products tab filters. Kept for the session (not stored): the list is short and a stale
    filter left on a shared wall tablet would hide products from the next person. */
-var PM_FILTER_DEFAULT = { shape: '', size: '', color: '', machine: '', orders: '' };
+var PM_FILTER_DEFAULT = { shape: [], size: [], color: [], machine: [], orders: [] };
 var PM_FILTER = Object.assign({}, PM_FILTER_DEFAULT);
 
 function suppliedCodes() {
@@ -2423,43 +2537,44 @@ function suppliedCodes() {
 function orderState(code, open, supplied) {
   return open[code] > 0 ? 'open' : supplied[code] ? 'done' : 'none';
 }
-/* Filters are tap-to-select chips, one row per field: tap to pick a value, tap it again (or
-   another) to change. One value per field; fields combine. Rows wrap on a wide screen and
-   scroll sideways on a phone, so the list stays near the top. */
-function pmChipRow(key, label, values, text) {
-  return '<div class="pm-row"><span class="pm-label">' + esc(label) + '</span><div class="pm-chips">' +
-    values.map(function (v) {
-      return chip('data-chip-key="' + key + '" data-chip-val="' + esc(v) + '"', text ? text(v) : esc(v), PM_FILTER[key] === v);
-    }).join('') + '</div></div>';
-}
+/* Filters are multi-select chip rows (see chipRow): tap to add a value, tap again to drop it.
+   Rows wrap on a wide screen and scroll sideways on a phone, so the list stays near the top. */
 function productFilterBar(all) {
-  var any = Object.keys(PM_FILTER).some(function (k) { return PM_FILTER[k]; });
+  var any = selCount(PM_FILTER, Object.keys(PM_FILTER)) > 0;
   var opt = function (k) { return uniqueSorted(all.map(function (p) { return p[k]; }).map(String)); };
   var ORDERS = { open: 'With open orders', done: 'Supplied, none open', none: 'Never ordered' };
-  var swatch = function (c) {
-    var hex = productHex(c);
-    return (hex ? '<i class="pm-sw" style="background:' + hex + '" aria-hidden="true"></i>' : '') + esc(c);
-  };
-  return '<div class="pm-filters">' +
-    pmChipRow('orders', 'Orders', ['open', 'done', 'none'], function (v) { return esc(ORDERS[v]); }) +
-    pmChipRow('shape', 'Shape', opt('shape')) +
-    pmChipRow('size', 'Pack size', opt('size')) +
-    pmChipRow('color', 'Colour', opt('color'), swatch) +
-    pmChipRow('machine', 'Machine', opt('machine')) +
-    (any ? '<div class="pm-row">' + chip('id="pmReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') + '</div>' : '') +
+  // On a phone the five rows fold behind one Filters chip (desktop shows them always).
+  var n = selCount(PM_FILTER, Object.keys(PM_FILTER));
+  return '<div class="pm-filters pm-foldable' + (PM_PANEL ? ' is-open' : '') + '">' +
+    '<div class="pm-fold-bar">' +
+      chip('id="pmPanel" aria-controls="pmTable"', '<span aria-hidden="true">⚲</span> Filters' +
+        (n ? ' <b class="chip-badge">' + n + '</b>' : ''), PM_PANEL || n > 0) +
+      (any ? chip('id="pmReset2"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '') +
+    '</div>' +
+    chipRow(PM_FILTER, 'orders', 'Orders', ['open', 'done', 'none'], function (v) { return esc(ORDERS[v]); }) +
+    chipRow(PM_FILTER, 'shape', 'Shape', opt('shape')) +
+    chipRow(PM_FILTER, 'size', 'Pack size', opt('size')) +
+    chipRow(PM_FILTER, 'color', 'Colour', opt('color'), colourSwatch) +
+    chipRow(PM_FILTER, 'machine', 'Machine', opt('machine')) +
+    (any ? '<div class="pm-row pm-clear-row">' + chip('id="pmReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') + '</div>' : '') +
     '</div>';
 }
 // Shape → Output / day are folded away by default; only Code, Product and Open qty show.
 var PM_DETAILS = false;
+var PM_PANEL = false;   // phones: filter rows unfolded
 function passesProductFilter(p, open, supplied) {
   return ['shape', 'size', 'color', 'machine'].every(function (k) {
-    return !PM_FILTER[k] || String(p[k]) === PM_FILTER[k];
-  }) && (!PM_FILTER.orders || orderState(p.code, open, supplied) === PM_FILTER.orders);
+    return inSel(PM_FILTER[k], p[k]);
+  }) && inSel(PM_FILTER.orders, orderState(p.code, open, supplied));
 }
 function bindProductFilters(mainEl) {
   bindChips(mainEl, PM_FILTER, 'data-pm');
-  var rs = document.getElementById('pmReset');
-  if (rs) rs.addEventListener('click', function () { PM_FILTER = Object.assign({}, PM_FILTER_DEFAULT); render(); });
+  ['pmReset', 'pmReset2'].forEach(function (id) {
+    var rs = document.getElementById(id);
+    if (rs) rs.addEventListener('click', function () { PM_FILTER = Object.assign({}, PM_FILTER_DEFAULT); render(); });
+  });
+  var pp = document.getElementById('pmPanel');
+  if (pp) pp.addEventListener('click', function () { PM_PANEL = !PM_PANEL; render(); });
   var dt = document.getElementById('pmDetails');
   if (dt) dt.addEventListener('click', function () { PM_DETAILS = !PM_DETAILS; render(); });
 }
@@ -2527,7 +2642,7 @@ function renderProductMaster() {
    alike, so the figures on screen always describe the same slice.
    --------------------------------------------------------------------------- */
 var MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-var SUM_DEFAULT = { year: 0, month: -1, po: '', brand: '', type: '', color: '', machine: '', status: '', sort: 'qty', _panel: '' };
+var SUM_DEFAULT = { year: 0, month: -1, po: '', brand: [], type: [], color: [], machine: [], status: [], sort: 'qty', _panel: '' };
 var SUM = Object.assign({}, SUM_DEFAULT);
 var SUM_SORTS = { qty: 'Quantity', value: 'Value', invoices: 'Invoices', otif: 'OTIF %', code: 'Code' };
 var SUM_STATUSES = ['OTIF', 'Late', 'Short', 'Late + Short', 'Open line'];
@@ -2550,11 +2665,11 @@ function fmtLakh(v) {
 // A shipment or a line passes the tab's filters. Both carry po/brand/code/color/name.
 function passesSum(x, status, invNos) {
   if (SUM.po && x.po !== SUM.po) return false;
-  if (SUM.brand && x.brand !== SUM.brand) return false;
-  if (SUM.type && productType(x.code) !== SUM.type) return false;
-  if (SUM.color && x.color !== SUM.color) return false;
-  if (SUM.machine && String(x.usualMachine) !== SUM.machine) return false;
-  if (SUM.status && status !== SUM.status) return false;
+  if (!inSel(SUM.brand, x.brand)) return false;
+  if (!inSel(SUM.type, productType(x.code))) return false;
+  if (!inSel(SUM.color, x.color)) return false;
+  if (!inSel(SUM.machine, x.usualMachine)) return false;
+  if (!inSel(SUM.status, status)) return false;
   if (!passesPicked(x.code)) return false;
   if (!FILTER) return true;
   var q = FILTER.toLowerCase();
@@ -2634,8 +2749,8 @@ function uniqueSorted(list) {
 function summaryControls(all) {
   var isYear = SUM.month === -1;
   var label = isYear ? String(SUM.year) : MONTH_NAMES[SUM.month] + ' ' + SUM.year;
-  var more = ['po', 'brand', 'type', 'color', 'machine'].filter(function (k) { return SUM[k]; }).length + (SUM.sort !== 'qty' ? 1 : 0);
-  var any = SUM.status || more;
+  var more = selCount(SUM, LIST_MORE) + (SUM.po ? 1 : 0) + (SUM.sort !== 'qty' ? 1 : 0);
+  var any = SUM.status.length || more;
   var html = '<div class="chipbar">' +
     '<div class="modes sum-scope" role="group" aria-label="Summary period">' +
       '<button type="button" class="mode' + (isYear ? '' : ' active') + '" data-scope="month" aria-pressed="' + !isYear + '">Month</button>' +
@@ -2647,17 +2762,14 @@ function summaryControls(all) {
       '<button type="button" class="chip" data-step="1" aria-label="Next ' + (isYear ? 'year' : 'month') + '">›</button>' +
     '</div>' +
     '<span class="chip-sep" aria-hidden="true"></span>' +
-    panelChip(SUM, more + (SUM.status ? 1 : 0)) +
+    panelChip(SUM, more + (SUM.status.length ? 1 : 0)) +
     (any ? chip('id="sumReset"', '<span aria-hidden="true">✕</span> Clear', false, 'chip-clear') : '') +
     statusChips(SUM, SUM_STATUSES) +
     '</div>';
   if (SUM._panel === 'more') {
-    html += '<div class="chip-panel">' +
+    // PO stays a dropdown: there are dozens, too many for a chip row.
+    html += moreChipRows(SUM, all) + '<div class="chip-panel">' +
       sumSelect('po', 'PO', uniqueSorted(all.map(function (s) { return s.po; })), 'All POs') +
-      sumSelect('brand', 'Brand', uniqueSorted(all.map(function (s) { return s.brand; })), 'All brands') +
-      sumSelect('type', 'Type', uniqueSorted(all.map(function (s) { return productType(s.code); })), 'All types') +
-      sumSelect('color', 'Colour', uniqueSorted(all.map(function (s) { return s.color; })), 'All colours') +
-      sumSelect('machine', 'Usual machine', machineOptions(all), 'All machines') +
       sumSelect('sort', 'Sort by', Object.keys(SUM_SORTS).map(function (k) { return { value: k, text: SUM_SORTS[k] }; })) +
       '</div>';
   }
@@ -2862,12 +2974,16 @@ function activeFilterText() {
   if (FILTER) parts.push('Search: ' + FILTER);
   if (MODE === 'open') {
     if (hasMachineSel()) parts.push('Machine: ' + machineSelText());
+    OPEN_F_KEYS.forEach(function (k) {
+      if (OPEN_F[k].length) parts.push(k.charAt(0).toUpperCase() + k.slice(1) + ': ' + OPEN_F[k].join(', '));
+    });
     return parts.length ? 'Filters: ' + parts.join(' · ') : 'Filters: none';
   }
   var state = VIEW === 'dsummary' ? SUM : LIST;
   Object.keys(state).forEach(function (k) {
-    if (k === 'year' || k === 'month' || k === 'sort' || k === 'dateBy' || k === 'preset' || k.charAt(0) === '_' || !state[k]) return;
-    parts.push((k === 'machine' ? 'Usual machine' : k.charAt(0).toUpperCase() + k.slice(1)) + ': ' + state[k]);
+    var v = state[k];
+    if (k === 'year' || k === 'month' || k === 'sort' || k === 'dateBy' || k === 'preset' || k.charAt(0) === '_' || !v || !v.length) return;
+    parts.push((k === 'machine' ? 'Usual machine' : k.charAt(0).toUpperCase() + k.slice(1)) + ': ' + (Array.isArray(v) ? v.join(', ') : v));
   });
   if (VIEW !== 'dsummary' && (LIST.from || LIST.to)) parts.push('(dates by ' + (LIST.dateBy === 'po' ? 'PO date' : 'delivery') + ')');
   return parts.length ? 'Filters: ' + parts.join(' · ') : 'Filters: none';
@@ -3429,6 +3545,7 @@ function load(force) {
       COMPLETED = (data && data.completed) || null;
       TEST_REPORTS = (data && data.testReports) || [];
       PRODUCTS = (data && data.products) || [];
+      MASTER_BY_CODE = null;
       // A served-from-fallback payload is real data, but it is NOT current: the upstream is
       // throttling. Don't advance the freshness stamp, or the board would claim to be up to
       // date while showing an older schedule.
@@ -3574,6 +3691,8 @@ var I18N_HI = {
   'Product': 'प्रोडक्ट', 'Shape': 'आकार', 'Pack size': 'पैक साइज़', 'Weight (g)': 'वज़न (ग्राम)',
   'Masterbatch': 'मास्टरबैच', 'Output / hr': 'उत्पादन / घंटा', 'Output / day': 'उत्पादन / दिन',
   'Open qty': 'चालू मात्रा', 'Clear filter': 'फ़िल्टर हटाएँ', 'Clear products': 'प्रोडक्ट हटाएँ',
+  'Type': 'प्रकार', 'Clear filters': 'फ़िल्टर हटाएँ', 'ⓘ How lines are judged': 'ⓘ लाइनें कैसे आँकी जाती हैं',
+  'No open jobs match the filters.': 'इन फ़िल्टर से कोई चालू काम नहीं।',
   'Switch language: English / Hindi': 'भाषा बदलें: English / हिंदी',
   'Select one or more products': 'एक या अधिक प्रोडक्ट चुनें',
   'Clear': 'हटाएँ', 'Show details': 'पूरी जानकारी दिखाएँ', 'Hide details': 'जानकारी छिपाएँ', 'Orders': 'ऑर्डर', 'All products': 'सभी प्रोडक्ट', 'All shapes': 'सभी आकार',
